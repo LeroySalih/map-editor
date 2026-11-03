@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Map &amp; Mission Editor</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<header>
+  <div id="tools">
+    <button data-tool="select" class="on">Select</button>
+    <button data-tool="hill">Hills</button>
+    <button data-tool="wood">Woods</button>
+    <button data-tool="desert">Desert</button>
+    <button data-tool="sea">Sea</button>
+    <button data-tool="river">River</button>
+    <button data-tool="road">Road</button>
+    <button data-tool="objective">Objective</button>
+  </div>
+  <div id="gen">
+    <label>Seed <input id="seed" type="number" value="1" min="0"></label>
+    <button id="generate">Generate map</button>
+    <button id="undo">Undo</button>
+    <button id="delete">Delete</button>
+  </div>
+  <div id="io">
+    <button id="save">Save .json</button>
+    <button id="load">Load</button>
+    <button id="export-svg">SVG</button>
+    <button id="export-png">PNG</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </div>
+</header>
+<main>
+  <div id="sheet"></div>
+  <aside>
+    <label>Title <input id="title" type="text"></label>
+    <label>Mission rules <textarea id="rules" rows="6"></textarea></label>
+    <p id="hint">Click to add points, double-click to finish. Esc cancels.</p>
+  </aside>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

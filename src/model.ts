@@ -1,0 +1,68 @@
+export type Terrain = 'hill' | 'river' | 'sea' | 'wood' | 'desert' | 'road';
+export type Pt = [number, number];
+
+export interface Feature { id: string; type: Terrain; points: Pt[]; width?: number }
+export interface Objective { id: string; x: number; y: number; label: string }
+export interface MapDoc {
+  version: 1;
+  title: string;
+  rules: string;
+  seed: number;
+  features: Feature[];
+  objectives: Objective[];
+}
+
+/** All units are millimetres. Sheet is A3 landscape, Y down (SVG space). */
+export const SHEET = { w: 420, h: 297 };
+export const MARGIN = 14;
+
+/** Closed terrain is a filled area; open terrain is a stroked line. */
+export const CLOSED: Record<Terrain, boolean> = {
+  hill: true, sea: true, wood: true, desert: true, river: false, road: false,
+};
+
+export const TERRAIN_LABEL: Record<Terrain, string> = {
+  hill: 'Hills', river: 'River', sea: 'Sea', wood: 'Woods', desert: 'Desert', road: 'Road',
+};
+
+export function uid(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+export function newDoc(): MapDoc {
+  return {
+    version: 1,
+    title: 'Untitled Mission',
+    rules: 'Objective: hold the marked positions.\nDeployment: opposite long edges, 12" in.',
+    seed: 1,
+    features: [],
+    objectives: [],
+  };
+}
+
+const TERRAINS = Object.keys(CLOSED);
+
+/** Throws on anything that is not a map file we can safely render. */
+export function validate(o: unknown): MapDoc {
+  const d = o as Partial<MapDoc> | null;
+  if (!d || typeof d !== 'object' || d.version !== 1) throw new Error('Not a map file (version 1)');
+  if (!Array.isArray(d.features) || !Array.isArray(d.objectives)) throw new Error('Malformed map file');
+  const num = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
+  for (const f of d.features) {
+    if (!f || !TERRAINS.includes(f.type) || !Array.isArray(f.points) ||
+        !f.points.every((p) => Array.isArray(p) && num(p[0]) && num(p[1]))) {
+      throw new Error('Malformed feature');
+    }
+  }
+  for (const ob of d.objectives) {
+    if (!ob || !num(ob.x) || !num(ob.y)) throw new Error('Malformed objective');
+  }
+  return {
+    version: 1,
+    title: String(d.title ?? ''),
+    rules: String(d.rules ?? ''),
+    seed: num(d.seed) ? (d.seed as number) : 1,
+    features: d.features.map((f) => ({ ...f, id: String(f.id ?? uid()) })),
+    objectives: d.objectives.map((ob) => ({ ...ob, id: String(ob.id ?? uid()), label: String(ob.label ?? '') })),
+  };
+}
