@@ -9,6 +9,7 @@ Browser editor for A3 colour tabletop maps and missions for a gothic-futuristic 
 - **Terrain:** hill, wood, desert, sea (closed areas); river, road (open lines); wall (multi-click polyline with straight segments, like a road); bridge, port (straight two-click pieces, `STRAIGHT` in `src/model.ts`; port: land end first, sea end second). Add new types in `src/model.ts` (`CLOSED`, `TERRAIN_LABEL`) and `src/render.ts`.
 - **Generation:** seeded (`src/rng.ts`); same seed gives same map. Output stays hand-editable.
 - **Background:** `MapDoc.background`, `#rrggbb`, default parchment `DEFAULT_BG`; validated by `isHex` in the editor and `HEX` in `server/mapserver/validate.py`, and re-checked in `renderSvg` so an untrusted colour never reaches the SVG. **Clear all** (two clicks, undoable) removes terrain and objectives only.
+- **Selecting:** Select mode picks a piece (or an objective marker) by clicking; dragging draws a box that selects everything it touches (`src/select.ts`: line pieces by their real segments and width, filled areas also when the box is inside them), Shift adds or toggles, Esc cancels a drag, Delete removes everything selected in one undo step. `selected` is a `Set` of ids; terrain carries `data-id`, markers `data-obj`. **Do not redraw on pointer-up unless a box was dragged:** `draw()` replaces the pressed element and the browser then drops the click.
 - **Hex grid:** 2 cm (20 mm) across flats, flat-top, anchored at the inner border corner. `GRID_MM` in `src/model.ts`; toggled by `MapDoc.grid`.
 - **Files:** versioned JSON (`MapDoc.version`, currently 3; v1 and v2 migrate in `validate`: v2 added `grid`, v3 added `background`). Changing the shape needs a version bump and a migration in `validate`.
 - **Export:** SVG (A3 mm size) and 300 dpi PNG. PDF with bleed/crop marks is planned.
@@ -28,10 +29,10 @@ Same process as Kerf Sabre (its `docs/AUTH-PLANNER-004.md`): browser-only Author
 - Saves use optimistic concurrency: `PUT` carries `baseVersion`; a stale one is 409 `conflict` and the editor then saves the next time as a new copy.
 - Editor side: `src/api.ts` (client), "Save to my account" and "My maps" in `src/main.ts`. The link to the saved copy (`remote`) is in memory only and is dropped on sign-out, on Load, and on a conflict.
 - Tests: `cd server && pytest` (fake DINO key and JWKS, no network); `npm test` covers the client. Dev: run `python server/run.py` and `npm run dev` (Vite proxies `/api`). The server listens on port 5000 by default (`MAP_PORT`); on a Mac, AirPlay Receiver can hold 5000, so set another `MAP_PORT` and the proxy in `vite.config.ts` there.
-- **Deploy** (`deploy.sh`, `deploy/README.md`): on the server, fast-forwards to `origin/main`, rebuilds only what changed, tests before going live, swaps `dist/` atomically, restarts the systemd service `map-editor` only when server code changed, checks `/health` and rolls back on failure.
+- **Deploy** (`deploy.sh`, `Dockerfile`, `docker-compose.yml`, `deploy/README.md`): the server has only git and Docker. `deploy.sh` fast-forwards to `origin/main`, builds the image (the Dockerfile runs the editor tests, the server tests, then the editor build, so a failing test means no image), runs it as the container `map-editor` on the **external** Docker network `dino-app` (never created or removed by us), waits for the health check and rolls back to `map-editor:previous` on failure. The database is the volume `map-editor_map-editor-data`; no host port is published (other containers use `http://map-editor:5000`). `VITE_*` values in `deploy/map-editor.env` are baked into the editor at build time.
 
 ## Stack
-Editor: plain TypeScript + Vite, no framework. `npm run dev`, `npm test`, `npm run build`. Server: Python in `server/` (`pytest` from there).
+Editor: plain TypeScript + Vite, no framework. `npm run dev`, `npm test`, `npm run build`. Server: Python in `server/` (`pytest` from there). Production: one Docker image (see Deploy).
 
 ## Git
 Commit directly to `main` and push `main`. Run `npm test` and `npm run build` first (and `pytest` in `server/` when you touch it).
