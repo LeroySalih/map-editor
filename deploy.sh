@@ -70,6 +70,7 @@ rollback() {
   set +e
   [ "$PULLED" = 1 ] && [ "$ROLLED" = 0 ] || return 0
   ROLLED=1
+  cd "$ROOT"
   log "Rolling back to ${PREV:0:8} ..."
   git reset --hard --quiet "$PREV"
   rm -rf dist.new
@@ -153,7 +154,7 @@ if [ "$NEED_PIP" = 1 ]; then
 fi
 if [ "$SKIP_TESTS" = 0 ]; then
   if [ "$NEED_BUILD" = 1 ]; then log "Editor tests ..."; npx vitest run --reporter=dot; fi
-  if [ "$NEED_SERVER" = 1 ]; then log "Server tests ..."; (cd server && .venv/bin/python -m pytest -q); fi
+  if [ "$NEED_SERVER" = 1 ]; then log "Server tests ..."; server/.venv/bin/python -m pytest -q server; fi
 fi
 if [ "$NEED_BUILD" = 1 ]; then
   log "Building the editor ..."
