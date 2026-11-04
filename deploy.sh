@@ -63,7 +63,7 @@ restart_service() {
     return
   fi
   return 2
-}
+} 9>&-   # the lock file must not leak into a server the restart command starts, or it would hold the lock for ever
 
 rollback() {
   trap - ERR
