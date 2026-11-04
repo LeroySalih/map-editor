@@ -151,7 +151,9 @@ function objectivesSvg(doc: MapDoc, fg: string): string {
   return doc.objectives.map((o) =>
     `<g data-obj="${esc(o.id)}"><circle cx="${o.x}" cy="${o.y}" r="5" fill="${PALETTE.accent}" stroke="${PALETTE.ink}" stroke-width=".8"/>` +
     `<path d="M${o.x - 7},${o.y} h3 M${o.x + 4},${o.y} h3 M${o.x},${o.y - 7} v3 M${o.x},${o.y + 4} v3" stroke="${fg}" stroke-width=".7"/>` +
-    `<text x="${o.x}" y="${o.y + 2}" text-anchor="middle" font-family="${BODY_FONT}" font-size="6" font-weight="bold" fill="${PALETTE.paper}">${esc(o.label)}</text></g>`).join('');
+    `<text x="${o.x}" y="${o.y + 2}" text-anchor="middle" font-family="${BODY_FONT}" font-size="6" font-weight="bold" fill="${PALETTE.paper}">${esc(o.label)}</text>` +
+    // A bigger invisible target on top, so a marker is easy to click (the crosshair ticks and label alone are hard to hit).
+    `<circle cx="${o.x}" cy="${o.y}" r="9" fill="transparent"/></g>`).join('');
 }
 
 /** Order matters: big flat areas first, linework and markers on top. */

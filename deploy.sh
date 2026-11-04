@@ -123,7 +123,7 @@ if [ "$NEED_BUILD" = 1 ] || [ "$RUNNING" != true ]; then NEED_UP=1; fi
 
 yn() { [ "$1" = 1 ] && echo yes || echo no; }
 log "Deployed: ${PREV:0:8}   Latest: ${NEW:0:8}   (branch $BRANCH)"
-log "Plan: build image: $(yn $NEED_BUILD) | (re)start container: $(yn $NEED_UP) | tests: $([ "$SKIP_TESTS" = 1 ] && echo skipped || echo "yes, during the build")"
+log "Plan: build image: $(yn $NEED_BUILD) | update container: $(yn $NEED_UP) (only replaced if the image changed) | tests: $([ "$SKIP_TESTS" = 1 ] && echo skipped || echo "yes, during the build")"
 
 if [ "$CHECK" = 1 ]; then
   [ "$PREV" = "$NEW" ] || { log "Commits to deploy:"; git log --oneline "$PREV..$NEW"; }
@@ -158,7 +158,7 @@ STARTED=1
 dc up -d --no-build --remove-orphans
 if ! wait_healthy; then
   container_logs
-  die "The container did not become healthy within ${HEALTH_WAIT}s (state: $(health))."
+  die "The container did not become healthy (state: $(health); waited up to ${HEALTH_WAIT}s)."
 fi
 echo "$BUILD_HASH" > "$STATE/build-env"
 log "Container is healthy."

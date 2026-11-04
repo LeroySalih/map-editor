@@ -1,5 +1,6 @@
 import { ApiError, createMap, deleteMap, listMaps, openMap, saveMap } from './api';
 import { dist } from './geometry';
+import { idsInRect, rectOf } from './select';
 import { genMap } from './generate';
 import {
   CLOSED, DEFAULT_BG, SHEET, isStraight, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
@@ -20,8 +21,11 @@ let draft: Pt[] = [];
 /** The saved copy on the server this page is linked to, if any. */
 let remote: { id: string; version: number } | null = null;
 let accessToken: string | null = null;
-let selected: string | null = null;
+/** Ids of the selected terrain pieces and objective markers. */
+const selected = new Set<string>();
 const history: string[] = [];
+/** The box being dragged in Select mode (mm), or null. */
+let marquee: { a: Pt; b: Pt } | null = null;
 
 try {
   const saved = localStorage.getItem('map-editor.doc');
@@ -37,9 +41,15 @@ function draw() {
   const sheet = $('sheet');
   sheet.innerHTML = renderSvg(doc);
   const svg = sheet.querySelector('svg')!;
-  if (selected) {
-    svg.querySelector(`[data-id="${CSS.escape(selected)}"]`)
+  for (const id of selected) {
+    svg.querySelector(`[data-id="${CSS.escape(id)}"],[data-obj="${CSS.escape(id)}"]`)
       ?.setAttribute('filter', 'drop-shadow(0 0 1.5px #b8452e)');
+  }
+  if (marquee) {
+    const r = rectOf(marquee.a, marquee.b);
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.innerHTML = `<rect x="${r.x0}" y="${r.y0}" width="${r.x1 - r.x0}" height="${r.y1 - r.y0}" fill="#b8452e" fill-opacity=".12" stroke="#b8452e" stroke-width=".6" stroke-dasharray="3 2" pointer-events="none"/>`;
+    svg.appendChild(g);
   }
   if (draft.length) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -75,12 +85,20 @@ function finishDraft() {
 $('sheet').addEventListener('click', (e) => {
   const p = toMm(e);
   if (tool === 'select') {
-    const hit = (e.target as Element).closest('[data-id]');
-    selected = hit?.getAttribute('data-id') ?? null;
+    // Terrain pieces carry data-id and objective markers data-obj; both can be selected and deleted.
+    if (suppressClick) return;   // this click is the end of a box drag
+    const hit = (e.target as Element).closest('[data-id],[data-obj]');
+    const id = hit?.getAttribute('data-id') ?? hit?.getAttribute('data-obj') ?? null;
+    if (e.shiftKey) {                                      // Shift: add to or take away from the selection
+      if (id) { if (selected.has(id)) selected.delete(id); else selected.add(id); }
+    } else {
+      selected.clear();
+      if (id) selected.add(id);
+    }
     draw();
   } else if (tool === 'objective') {
     snapshot();
-    doc.objectives.push({ id: uid(), x: p[0], y: p[1], label: String(doc.objectives.length + 1) });
+    doc.objectives.push({ id: uid(), x: p[0], y: p[1], label: nextObjectiveLabel() });
     draw();
   } else {
     if (draft.length && dist(draft[draft.length - 1], p) < 0.5) return;
@@ -91,12 +109,54 @@ $('sheet').addEventListener('click', (e) => {
 });
 $('sheet').addEventListener('dblclick', finishDraft);
 
+// Box select (Select mode): drag on the sheet. Everything the box touches is selected, live; Shift keeps what was already selected.
+let drag: { a: Pt; cx: number; cy: number; shift: boolean; active: boolean; base: Set<string> } | null = null;
+let suppressClick = false;   // set when a box drag ends, cleared by the next press: the click that trails a drag always comes first
+
+function endDrag() {
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', cancelDrag);
+  if (drag?.active) suppressClick = true;
+  drag = null; marquee = null;
+}
+function onDragMove(e: PointerEvent) {
+  if (!drag) return;
+  if (!drag.active) {
+    if (Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) < 4) return;   // a click with a little wobble is still a click
+    drag.active = true;
+    drag.base = drag.shift ? new Set(selected) : new Set();
+  }
+  const b = toMm(e);
+  marquee = { a: drag.a, b };
+  selected.clear();
+  drag.base.forEach((id) => selected.add(id));
+  idsInRect(doc.features, doc.objectives, rectOf(drag.a, b)).forEach((id) => selected.add(id));
+  draw();
+}
+// Only redraw when a box was really dragged. Redrawing replaces the element that was pressed, and the browser then
+// drops the click that would have followed, which would break plain click-to-select.
+function onDragEnd() { const wasBox = drag?.active; endDrag(); if (wasBox) draw(); }
+function cancelDrag() {   // Esc or a cancelled pointer: put the selection back as it was
+  const wasBox = drag?.active;
+  if (drag?.active) { selected.clear(); drag.base.forEach((id) => selected.add(id)); }
+  endDrag(); if (wasBox) draw();
+}
+$('sheet').addEventListener('pointerdown', (e) => {
+  suppressClick = false;   // a new press: whatever click follows it is a real one
+  if (tool !== 'select' || e.button !== 0) return;
+  drag = { a: toMm(e), cx: e.clientX, cy: e.clientY, shift: e.shiftKey, active: false, base: new Set() };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', cancelDrag);
+});
+
 function setTool(t: Tool) {
-  tool = t; draft = []; selected = null;
+  tool = t; draft = []; selected.clear();
   $('hint').textContent = isStraight(t)
     ? 'Straight piece: click the start, then click the end. Esc cancels.'
     : t === 'objective' ? 'Click to place a numbered objective marker.'
-    : t === 'select' ? 'Click a piece to select it, then Delete removes it.'
+    : t === 'select' ? 'Click a piece, or drag a box around several. Shift adds to the selection. Delete removes it.'
     : 'Click to add points, double-click to finish. Esc cancels.';
   document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
     b.classList.toggle('on', b.dataset.tool === t));
@@ -105,21 +165,30 @@ function setTool(t: Tool) {
 document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
   b.addEventListener('click', () => setTool(b.dataset.tool as Tool)));
 
+/** The smallest positive number no objective uses yet, so deleting marker 2 and adding one gives 2 again, never a second 3. */
+function nextObjectiveLabel(): string {
+  const used = new Set(doc.objectives.map((o) => o.label));
+  let n = 1;
+  while (used.has(String(n))) n++;
+  return String(n);
+}
+
 function deleteSelected() {
-  if (!selected) return;
+  if (!selected.size) return;
   snapshot();
-  doc.features = doc.features.filter((f) => f.id !== selected);
-  selected = null;
+  doc.features = doc.features.filter((f) => !selected.has(f.id));
+  doc.objectives = doc.objectives.filter((o) => !selected.has(o.id));
+  selected.clear();
   draw();
 }
 function undo() {
   const prev = history.pop();
-  if (prev) { doc = JSON.parse(prev); selected = null; draft = []; syncPanel(); draw(); }
+  if (prev) { doc = JSON.parse(prev); selected.clear(); draft = []; syncPanel(); draw(); }
 }
 
 window.addEventListener('keydown', (e) => {
   if ((e.target as HTMLElement).matches('input,textarea')) return;
-  if (e.key === 'Escape') { draft = []; draw(); }
+  if (e.key === 'Escape') { if (drag?.active) cancelDrag(); else { draft = []; draw(); } }
   else if (e.key === 'Enter') finishDraft();
   else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
   else if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
@@ -130,7 +199,7 @@ $('generate').addEventListener('click', () => {
   const seed = Number($<HTMLInputElement>('seed').value) || 0;
   doc.seed = seed;
   doc.features = genMap(seed);
-  selected = null;
+  selected.clear();
   draw();
 });
 $('undo').addEventListener('click', undo);
@@ -171,7 +240,7 @@ $('clear').addEventListener('click', () => {
   disarmClear();
   snapshot();
   doc.features = []; doc.objectives = [];
-  selected = null; draft = [];
+  selected.clear(); draft = [];
   draw();
 });
 
@@ -219,7 +288,7 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   if (!f) return;
   try {
     const next = validate(JSON.parse(await f.text()));
-    snapshot(); doc = next; selected = null; draft = []; remote = null; syncPanel(); draw();
+    snapshot(); doc = next; selected.clear(); draft = []; remote = null; syncPanel(); draw();
   } catch (err) { alert(`Could not load: ${(err as Error).message}`); }
   input.value = '';
 });
@@ -306,7 +375,7 @@ async function showMyMaps() {
           const rec = await openMap(accessToken!, m.id);
           const next = validate(rec.doc);
           snapshot(); doc = next; remote = { id: rec.id, version: rec.version };
-          selected = null; draft = []; syncPanel(); draw(); dlg.close();
+          selected.clear(); draft = []; syncPanel(); draw(); dlg.close();
           renderAuth(`Opened "${doc.title}".`);
         } catch (e) { msg.textContent = failText(e); }
       });

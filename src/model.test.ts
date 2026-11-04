@@ -90,6 +90,13 @@ describe('map model', () => {
     d.features.push({ id: 'z', type: 'bridge', points: [[10, 10], [10, 10]] });
     expect(renderSvg(d)).not.toContain('data-id="z"');
   });
+  it('gives each objective marker a data-obj id and a larger click target', () => {
+    const d = newDoc();
+    d.objectives.push({ id: 'ob1', x: 100, y: 100, label: '1' });
+    const svg = renderSvg(d);
+    expect(svg).toContain('data-obj="ob1"');
+    expect(svg).toMatch(/<circle cx="100" cy="100" r="9" fill="transparent"\/><\/g>/);
+  });
   it('escapes text in the SVG', () => {
     const d = newDoc();
     d.title = '<script>';
