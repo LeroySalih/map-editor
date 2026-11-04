@@ -1,4 +1,6 @@
-export type Terrain = 'hill' | 'river' | 'sea' | 'wood' | 'desert' | 'road';
+export type Terrain =
+  | 'hill' | 'river' | 'sea' | 'wood' | 'desert' | 'road'
+  | 'wall' | 'bridge' | 'port';
 export type Pt = [number, number];
 
 export interface Feature { id: string; type: Terrain; points: Pt[]; width?: number }
@@ -23,10 +25,16 @@ export const GRID_MM = 20;
 /** Closed terrain is a filled area; open terrain is a stroked line. */
 export const CLOSED: Record<Terrain, boolean> = {
   hill: true, sea: true, wood: true, desert: true, river: false, road: false,
+  wall: false, bridge: false, port: false,
 };
+
+/** Straight two-point pieces: click the start, then the end. */
+export const STRAIGHT: readonly Terrain[] = ['wall', 'bridge', 'port'];
+export const isStraight = (t: string): boolean => (STRAIGHT as readonly string[]).includes(t);
 
 export const TERRAIN_LABEL: Record<Terrain, string> = {
   hill: 'Hills', river: 'River', sea: 'Sea', wood: 'Woods', desert: 'Desert', road: 'Road',
+  wall: 'Wall', bridge: 'Bridge', port: 'Port',
 };
 
 export function uid(): string {

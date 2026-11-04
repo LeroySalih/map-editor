@@ -1,7 +1,7 @@
 import { dist } from './geometry';
 import { genMap } from './generate';
 import {
-  CLOSED, SHEET, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
+  CLOSED, SHEET, isStraight, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
 } from './model';
 import { renderSvg } from './render';
 import './style.css';
@@ -77,6 +77,7 @@ $('sheet').addEventListener('click', (e) => {
   } else {
     if (draft.length && dist(draft[draft.length - 1], p) < 0.5) return;
     draft.push(p);
+    if (isStraight(tool) && draft.length === 2) { finishDraft(); return; }
     draw();
   }
 });
@@ -84,6 +85,11 @@ $('sheet').addEventListener('dblclick', finishDraft);
 
 function setTool(t: Tool) {
   tool = t; draft = []; selected = null;
+  $('hint').textContent = isStraight(t)
+    ? 'Straight piece: click the start, then click the end. Esc cancels.'
+    : t === 'objective' ? 'Click to place a numbered objective marker.'
+    : t === 'select' ? 'Click a piece to select it, then Delete removes it.'
+    : 'Click to add points, double-click to finish. Esc cancels.';
   document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
     b.classList.toggle('on', b.dataset.tool === t));
   draw();

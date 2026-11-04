@@ -1,9 +1,10 @@
 import { centroid, scaleAbout, smoothPath } from './geometry';
-import { CLOSED, GRID_MM, MARGIN, SHEET, type Feature, type MapDoc } from './model';
+import { CLOSED, GRID_MM, MARGIN, SHEET, isStraight, type Feature, type MapDoc } from './model';
 
 export const PALETTE = {
   paper: '#e9dfc7', ink: '#1c1a17', hill: '#b9a77c', wood: '#7c8f62',
   sea: '#6d8fa3', desert: '#dcc58a', road: '#5b4a3a', accent: '#8c2f2a',
+  stone: '#9a9486', plank: '#a07c4c', pier: '#6b5238',
 };
 const TITLE_FONT = `'UnifrakturCook','Old English Text MT',Georgia,serif`;
 const BODY_FONT = `'Arial Narrow','Roboto Condensed',Arial,sans-serif`;
@@ -22,7 +23,48 @@ const FILL: Record<string, string> = {
 };
 const PATTERN: Record<string, string> = { sea: 'p-sea', desert: 'p-desert', wood: 'p-wood' };
 
+/** Wall, bridge and port: a straight piece drawn in a local frame (x along the piece). */
+function straightSvg(f: Feature): string {
+  const a = f.points[0], b = f.points[f.points.length - 1];
+  const L = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+  if (f.points.length < 2 || L < 0.01) return '';
+  const ang = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+  const k = PALETTE.ink;
+  const planks = (w: number, step: number) => {
+    let d = '';
+    for (let x = step; x < L; x += step) d += `M${x.toFixed(2)},${-w / 2}V${w / 2}`;
+    return d;
+  };
+  let body = '';
+  if (f.type === 'wall') {
+    body = `<line x2="${L}" stroke="${k}" stroke-width="3.2" stroke-linecap="butt"/>` +
+      `<line x2="${L}" stroke="${PALETTE.stone}" stroke-width="2" stroke-linecap="butt"/>` +
+      `<line x2="${L}" stroke="${k}" stroke-opacity=".55" stroke-width="2" stroke-dasharray=".35 3.65"/>`;
+  } else if (f.type === 'bridge') {
+    const w = 7;
+    body = `<rect y="${-w / 2}" width="${L}" height="${w}" fill="${PALETTE.plank}"/>` +
+      `<path d="${planks(w, 2)}" stroke="${k}" stroke-opacity=".45" stroke-width=".35"/>` +
+      `<path d="M0,${-w / 2}H${L}M0,${w / 2}H${L}" stroke="${k}" stroke-width="1"/>` +
+      `<rect x="-.8" y="${-w / 2 - .6}" width="1.6" height="${w + 1.2}" fill="${k}"/>` +
+      `<rect x="${L - .8}" y="${-w / 2 - .6}" width="1.6" height="${w + 1.2}" fill="${k}"/>`;
+  } else {
+    const w = 5;
+    let posts = '';
+    for (let x = 0; x <= L + 0.01; x += 6) {
+      posts += `<circle cx="${x.toFixed(2)}" cy="${-w / 2 - .4}" r=".8"/><circle cx="${x.toFixed(2)}" cy="${w / 2 + .4}" r=".8"/>`;
+    }
+    body = `<rect y="${-w / 2}" width="${L}" height="${w}" fill="${PALETTE.pier}" stroke="${k}" stroke-width=".7"/>` +
+      `<path d="${planks(w, 2)}" stroke="${k}" stroke-opacity=".4" stroke-width=".3"/>` +
+      `<rect x="${L - 1.5}" y="${-w}" width="3.5" height="${2 * w}" fill="${PALETTE.pier}" stroke="${k}" stroke-width=".7"/>` +
+      `<g fill="${k}">${posts}</g>`;
+  }
+  // Wide invisible stroke so thin pieces are easy to select.
+  const hit = `<line x2="${L}" stroke="transparent" stroke-width="6"/>`;
+  return `<g data-id="${esc(f.id)}" transform="translate(${a[0].toFixed(2)},${a[1].toFixed(2)}) rotate(${ang.toFixed(2)})">${body}${hit}</g>`;
+}
+
 function featureSvg(f: Feature): string {
+  if (isStraight(f.type)) return straightSvg(f);
   const id = `data-id="${esc(f.id)}"`;
   if (!CLOSED[f.type]) {
     const d = smoothPath(f.points, false);
@@ -98,7 +140,7 @@ function objectivesSvg(doc: MapDoc): string {
 }
 
 /** Order matters: big flat areas first, linework and markers on top. */
-const ORDER = ['desert', 'sea', 'hill', 'wood', 'river', 'road'];
+const ORDER = ['desert', 'sea', 'hill', 'wood', 'river', 'road', 'port', 'bridge', 'wall'];
 
 export function renderSvg(doc: MapDoc, standalone = false): string {
   const feats = [...doc.features].sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));

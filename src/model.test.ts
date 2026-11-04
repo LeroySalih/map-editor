@@ -35,6 +35,20 @@ describe('map model', () => {
     // Rows are 20 mm apart: the second hex in column 0 starts 20 mm lower.
     expect(hexGridPath()).toContain('M19.77,14.00H31.32');
   });
+  it('draws walls, bridges and ports as straight pieces', () => {
+    const d = newDoc();
+    for (const type of ['wall', 'bridge', 'port'] as const) {
+      d.features.push({ id: type, type, points: [[50, 100], [90, 130]] });
+    }
+    const svg = renderSvg(d);
+    for (const id of ['wall', 'bridge', 'port']) expect(svg).toContain(`data-id="${id}"`);
+    expect(validate(JSON.parse(JSON.stringify(d))).features.length).toBe(3);
+  });
+  it('skips zero-length straight pieces', () => {
+    const d = newDoc();
+    d.features.push({ id: 'z', type: 'wall', points: [[10, 10], [10, 10]] });
+    expect(renderSvg(d)).not.toContain('data-id="z"');
+  });
   it('escapes text in the SVG', () => {
     const d = newDoc();
     d.title = '<script>';
