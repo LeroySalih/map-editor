@@ -1,0 +1,21 @@
+# Install: sudo cp deploy/map-editor.service /etc/systemd/system/ ; edit the paths and User ; then
+#   sudo systemctl daemon-reload && sudo systemctl enable --now map-editor
+# (deploy.sh restarts it with `systemctl restart map-editor`: run deploy.sh as root, or allow that one
+#  command without a password for the deploy user: `deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart map-editor`.)
+[Unit]
+Description=Map & Mission Editor
+After=network.target
+
+[Service]
+User=mapeditor
+WorkingDirectory=/opt/map-editor/server
+EnvironmentFile=/opt/map-editor/deploy/map-editor.env
+ExecStart=/opt/map-editor/server/.venv/bin/python /opt/map-editor/server/run.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/map-editor
+
+[Install]
+WantedBy=multi-user.target

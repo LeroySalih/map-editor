@@ -8,10 +8,10 @@ It also serves the built editor, so one process is the whole site.
 cd server
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-MAP_SSO_ISSUER=https://dino.mr-salih.org python run.py      # http://127.0.0.1:8000
+MAP_SSO_ISSUER=https://dino.mr-salih.org python run.py      # http://127.0.0.1:5000
 pytest                                                      # no network needed
 ```
-For development run the editor beside it (`npm run dev` from the repo root; it proxies `/api` to port 8000).
+For development run the editor beside it (`npm run dev` from the repo root; it proxies `/api` to port 5000).
 To serve the editor from the server: `npm run build`, then `MAP_STATIC_DIR=../dist python run.py`.
 
 ## Settings (environment)
@@ -25,7 +25,7 @@ To serve the editor from the server: `npm run build`, then `MAP_STATIC_DIR=../di
 | `MAP_STATIC_DIR` | empty | folder of the built editor to serve at `/` |
 | `MAP_CORS_ORIGINS` | empty | comma list; only needed if the editor is on another origin (then build it with `VITE_API_URL`) |
 | `MAP_MAX_DOC_BYTES` / `MAP_MAX_MAPS_PER_USER` | 1000000 / 200 | limits |
-| `MAP_HOST` / `MAP_PORT` | 127.0.0.1 / 8000 | listen address. Put HTTPS in front of it for real use |
+| `MAP_HOST` / `MAP_PORT` | 127.0.0.1 / 5000 | listen address. Put HTTPS in front of it for real use |
 
 ## API (`/api/v1`, `Authorization: Bearer <DINO access token>`)
 - `GET /maps` list your maps (`id`, `title`, `version`, `updatedAt`), newest first

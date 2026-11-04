@@ -7,3 +7,8 @@ __pycache__
 venv
 *.db
 *.egg-info
+dist.new
+dist.prev
+dist.failed
+.deploy-state
+deploy/map-editor.env

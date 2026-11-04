@@ -9,4 +9,4 @@ from mapserver.config import Settings
 if __name__ == "__main__":
     cfg = Settings.from_env()
     cfg.check()
-    uvicorn.run(create_app(cfg), host=os.environ.get("MAP_HOST", "127.0.0.1"), port=int(os.environ.get("MAP_PORT", "8000")))
+    uvicorn.run(create_app(cfg), host=os.environ.get("MAP_HOST", "127.0.0.1"), port=int(os.environ.get("MAP_PORT", "5000")))

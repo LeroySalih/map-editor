@@ -26,7 +26,8 @@ Same process as Kerf Sabre (its `docs/AUTH-PLANNER-004.md`): browser-only Author
 - `validate.py` mirrors `validate()` in `src/model.ts` (versions, terrain types). **When you add a terrain type or change the map file, change both** (and bump the version per the Files rule).
 - Saves use optimistic concurrency: `PUT` carries `baseVersion`; a stale one is 409 `conflict` and the editor then saves the next time as a new copy.
 - Editor side: `src/api.ts` (client), "Save to my account" and "My maps" in `src/main.ts`. The link to the saved copy (`remote`) is in memory only and is dropped on sign-out, on Load, and on a conflict.
-- Tests: `cd server && pytest` (fake DINO key and JWKS, no network); `npm test` covers the client. Dev: run `python server/run.py` and `npm run dev` (Vite proxies `/api`).
+- Tests: `cd server && pytest` (fake DINO key and JWKS, no network); `npm test` covers the client. Dev: run `python server/run.py` and `npm run dev` (Vite proxies `/api`). The server listens on port 5000 by default (`MAP_PORT`); on a Mac, AirPlay Receiver can hold 5000, so set another `MAP_PORT` and the proxy in `vite.config.ts` there.
+- **Deploy** (`deploy.sh`, `deploy/README.md`): on the server, fast-forwards to `origin/main`, rebuilds only what changed, tests before going live, swaps `dist/` atomically, restarts the systemd service `map-editor` only when server code changed, checks `/health` and rolls back on failure.
 
 ## Stack
 Editor: plain TypeScript + Vite, no framework. `npm run dev`, `npm test`, `npm run build`. Server: Python in `server/` (`pytest` from there).
