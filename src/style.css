@@ -1,13 +1,13 @@
-:root{--bg:#15130f;--panel:#201d17;--ink:#e9dfc7;--accent:#b8452e}
+:root{color-scheme:dark;--bg:#15130f;--panel:#201d17;--ink:#e9dfc7;--accent:#b8452e}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px 'Arial Narrow',Arial,sans-serif}
-header{display:flex;flex-wrap:wrap;gap:12px;padding:8px 12px;background:var(--panel);border-bottom:1px solid #000}
+header{display:flex;flex-wrap:wrap;gap:12px;padding:8px 16px;background:var(--panel);border-bottom:1px solid #000}
 header div{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 button{background:#2c2820;color:var(--ink);border:1px solid #555;padding:5px 10px;cursor:pointer}
 button.on{background:var(--accent);border-color:var(--accent)}
 input,textarea{background:#2c2820;color:var(--ink);border:1px solid #555;padding:4px;width:100%}
 #seed{width:80px}
-main{display:flex;gap:12px;padding:12px;align-items:flex-start}
+main{display:flex;gap:12px;padding:12px 16px;align-items:flex-start}
 #sheet{flex:1;min-width:0;box-shadow:0 0 0 1px #000,0 8px 24px #000a}
 #sheet svg{display:block;width:100%;height:auto;cursor:crosshair}
 aside{width:260px;display:flex;flex-direction:column;gap:10px}
