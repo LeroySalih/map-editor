@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Feature, Objective } from './model';
-import { featureHitsRect, idsInRect, objectiveHitsRect, rectOf, segmentHitsRect } from './select';
+import type { Feature } from './model';
+import { featureHitsRect, idsInRect, markerHitsRect, rectOf, segmentHitsRect, type Marker } from './select';
 
 const box = rectOf([100, 100], [50, 60]);  // dragged from bottom-right to top-left: still 50..100 x 60..100
 const f = (id: string, type: Feature['type'], points: [number, number][], width?: number): Feature => ({ id, type, points, ...(width ? { width } : {}) });
@@ -43,13 +43,13 @@ describe('box select', () => {
     expect(featureHitsRect(f('e', 'road', []), box)).toBe(false);
   });
   it('objectives are 5 mm markers', () => {
-    expect(objectiveHitsRect({ x: 75, y: 80 }, box)).toBe(true);     // inside
-    expect(objectiveHitsRect({ x: 104, y: 80 }, box)).toBe(true);    // marker edge overlaps the box
-    expect(objectiveHitsRect({ x: 110, y: 80 }, box)).toBe(false);
+    expect(markerHitsRect({ x: 75, y: 80 }, box)).toBe(true);     // inside
+    expect(markerHitsRect({ x: 104, y: 80 }, box)).toBe(true);    // marker edge overlaps the box
+    expect(markerHitsRect({ x: 110, y: 80 }, box)).toBe(false);
   });
   it('collects every id the box touches', () => {
     const feats = [f('in', 'hill', [[60, 70], [90, 70], [80, 95]]), f('out', 'wood', [[300, 10], [330, 10], [320, 40]]), f('line', 'wall', [[0, 80], [200, 80]])];
-    const objs: Objective[] = [{ id: 'o1', x: 70, y: 90, label: '1' }, { id: 'o2', x: 400, y: 280, label: '2' }];
+    const objs: Marker[] = [{ id: 'o1', x: 70, y: 90, label: '1' }, { id: 'o2', x: 400, y: 280, label: '2' }];
     expect(idsInRect(feats, objs, box).sort()).toEqual(['in', 'line', 'o1']);
   });
 });

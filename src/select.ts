@@ -1,5 +1,8 @@
-// Box (marquee) select: which terrain pieces and objectives does a rectangle touch? Pure geometry, millimetres.
-import { CLOSED, isStraight, type Feature, type Objective, type Pt } from './model';
+// Box (marquee) select: which terrain pieces and markers (objectives, spawn points) does a rectangle touch? Pure geometry, millimetres.
+import { CLOSED, isStraight, type Feature, type Pt } from './model';
+
+/** Anything placed as a point: an objective or a spawn point. */
+export interface Marker { id: string; x: number; y: number; label?: string }
 
 export interface Rect { x0: number; y0: number; x1: number; y1: number }
 
@@ -56,16 +59,16 @@ export function featureHitsRect(f: Feature, box: Rect): boolean {
   return closed && pts.length >= 3 && pointInPolygon([box.x0, box.y0], pts);   // the box is wholly inside this hill, sea, wood or desert
 }
 
-/** An objective is a marker of radius 5 mm. */
-export function objectiveHitsRect(o: Pick<Objective, 'x' | 'y'>, box: Rect, radius = 5): boolean {
+/** A marker is about 5 mm in radius (a spawn diamond reaches 6.4 mm, close enough). */
+export function markerHitsRect(o: Pick<Marker, 'x' | 'y'>, box: Rect, radius = 5): boolean {
   const nx = Math.max(box.x0, Math.min(o.x, box.x1)), ny = Math.max(box.y0, Math.min(o.y, box.y1));
   return Math.hypot(o.x - nx, o.y - ny) <= radius;
 }
 
 /** The ids of everything the box touches. */
-export function idsInRect(features: Feature[], objectives: Objective[], box: Rect): string[] {
+export function idsInRect(features: Feature[], markers: Marker[], box: Rect): string[] {
   return [
     ...features.filter((f) => featureHitsRect(f, box)).map((f) => f.id),
-    ...objectives.filter((o) => objectiveHitsRect(o, box)).map((o) => o.id),
+    ...markers.filter((o) => markerHitsRect(o, box)).map((o) => o.id),
   ];
 }

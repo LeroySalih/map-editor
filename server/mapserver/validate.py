@@ -8,11 +8,12 @@ from typing import Any
 
 from .errors import ApiError
 
-VERSIONS = (1, 2, 3)
+VERSIONS = (1, 2, 3, 4)
 TERRAINS = frozenset({"hill", "river", "sea", "wood", "desert", "road", "wall", "bridge", "port"})
 MAX_FEATURES = 5_000
 MAX_POINTS_PER_FEATURE = 2_000
 MAX_OBJECTIVES = 500
+MAX_SPAWNS = 100
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 COORD_LIMIT = 100_000.0  # mm; the sheet is 420 x 297
 
@@ -28,7 +29,7 @@ def _num(v: Any) -> bool:
 def validate_doc(doc: Any) -> str:
     """Raises ApiError 422 when the document is not a map we can safely keep. Returns its title (max 100 chars)."""
     if not isinstance(doc, dict) or doc.get("version") not in VERSIONS or isinstance(doc.get("version"), bool):
-        raise _bad("That is not a map file (version 1, 2 or 3).")
+        raise _bad("That is not a map file (version 1 to 4).")
     feats, objs = doc.get("features"), doc.get("objectives")
     if not isinstance(feats, list) or not isinstance(objs, list):
         raise _bad("The map has no feature or objective list.")
@@ -50,6 +51,14 @@ def validate_doc(doc: Any) -> str:
             raise _bad("An objective is malformed.")
         if "label" in o and (not isinstance(o["label"], str) or len(o["label"]) > 20):
             raise _bad("An objective label is too long.")
+    spawns = doc.get("spawns", [])
+    if not isinstance(spawns, list) or len(spawns) > MAX_SPAWNS:
+        raise _bad("The spawn point list is malformed or too long.")
+    for s in spawns:
+        if not isinstance(s, dict) or not _num(s.get("x")) or not _num(s.get("y")):
+            raise _bad("A spawn point is malformed.")
+        if "label" in s and (not isinstance(s["label"], str) or len(s["label"]) > 20):
+            raise _bad("A spawn point label is too long.")
     title, rules = doc.get("title", ""), doc.get("rules", "")
     if not isinstance(title, str) or not isinstance(rules, str) or len(title) > 200 or len(rules) > 2_000:
         raise _bad("The title or rules text is too long.")

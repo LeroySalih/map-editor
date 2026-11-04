@@ -10,7 +10,7 @@ describe('map model', () => {
     expect(validate(JSON.parse(JSON.stringify(d))).features.length).toBe(d.features.length);
   });
   it('rejects bad files', () => {
-    expect(() => validate({ version: 4 })).toThrow();
+    expect(() => validate({ version: 5 })).toThrow();
     expect(() => validate({ version: 1, features: [{ type: 'lava', points: [] }], objectives: [] })).toThrow();
   });
   it('generation is deterministic per seed', () => {
@@ -20,9 +20,10 @@ describe('map model', () => {
   it('migrates v1 files with the grid on', () => {
     const v1 = { version: 1, title: 't', rules: '', seed: 1, features: [], objectives: [] };
     const d = validate(v1);
-    expect(d.version).toBe(3);
+    expect(d.version).toBe(4);
     expect(d.grid).toBe(true);
     expect(d.background).toBe('#e9dfc7');
+    expect(d.spawns).toEqual([]);
   });
   it('keeps a valid background colour and refuses a bad one', () => {
     const d = newDoc();
@@ -55,7 +56,7 @@ describe('map model', () => {
   });
   it('v2 files load with the default background', () => {
     const v2 = { version: 2, title: 't', rules: '', seed: 1, grid: false, features: [], objectives: [] };
-    expect(validate(v2)).toMatchObject({ version: 3, grid: false, background: '#e9dfc7' });
+    expect(validate(v2)).toMatchObject({ version: 4, grid: false, background: '#e9dfc7', spawns: [] });
   });
   it('draws the hex grid only when enabled', () => {
     const d = newDoc();
@@ -96,6 +97,25 @@ describe('map model', () => {
     const svg = renderSvg(d);
     expect(svg).toContain('data-obj="ob1"');
     expect(svg).toMatch(/<circle cx="100" cy="100" r="9" fill="transparent"\/><\/g>/);
+  });
+  it('keeps spawn points, draws them, and refuses bad ones', () => {
+    const d = newDoc();
+    d.spawns.push({ id: 'sp1', x: 60, y: 90, label: 'A' }, { id: 'sp2', x: 360, y: 90, label: 'B' });
+    const back = validate(JSON.parse(JSON.stringify(d)));
+    expect(back.spawns).toEqual(d.spawns);
+    const svg = renderSvg(back);
+    expect(svg).toContain('data-spawn="sp1"');
+    expect(svg).toContain('data-spawn="sp2"');
+    expect(svg).toMatch(/<circle cx="60" cy="90" r="9" fill="transparent"\/><\/g>/);   // a click target like the objectives have
+    expect(() => validate({ ...d, spawns: 'A' })).toThrow();
+    expect(() => validate({ ...d, spawns: [{ id: 'x', x: 'left', y: 1 }] })).toThrow();
+  });
+  it('escapes spawn labels', () => {
+    const d = newDoc();
+    d.spawns.push({ id: 'a"b', x: 1, y: 1, label: '<script>' });
+    const svg = renderSvg(d);
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('data-spawn="a&quot;b"');
   });
   it('escapes text in the SVG', () => {
     const d = newDoc();

@@ -4,7 +4,7 @@ import { CLOSED, DEFAULT_BG, GRID_MM, MARGIN, SHEET, isHex, isStraight, type Fea
 export const PALETTE = {
   paper: '#e9dfc7', ink: '#1c1a17', hill: '#b9a77c', wood: '#7c8f62',
   sea: '#6d8fa3', desert: '#dcc58a', road: '#5b4a3a', accent: '#8c2f2a',
-  stone: '#9a9486', plank: '#a07c4c', pier: '#6b5238',
+  spawn: '#2f6f73', stone: '#9a9486', plank: '#a07c4c', pier: '#6b5238',
 };
 const TITLE_FONT = `'UnifrakturCook','Old English Text MT',Georgia,serif`;
 const BODY_FONT = `'Arial Narrow','Roboto Condensed',Arial,sans-serif`;
@@ -156,6 +156,18 @@ function objectivesSvg(doc: MapDoc, fg: string): string {
     `<circle cx="${o.x}" cy="${o.y}" r="9" fill="transparent"/></g>`).join('');
 }
 
+/** Spawn points: a lettered diamond inside a dashed ring, in teal so they never read as objectives. */
+function spawnsSvg(doc: MapDoc, fg: string): string {
+  return (doc.spawns ?? []).map((s) => {
+    const { x, y } = s;
+    return `<g data-spawn="${esc(s.id)}">` +
+      `<circle cx="${x}" cy="${y}" r="8.2" fill="none" stroke="${fg}" stroke-width=".5" stroke-dasharray="1.6 1.4"/>` +
+      `<path d="M${x},${y - 6.4}L${x + 5.4},${y}L${x},${y + 6.4}L${x - 5.4},${y}Z" fill="${PALETTE.spawn}" stroke="${PALETTE.ink}" stroke-width=".8" stroke-linejoin="round"/>` +
+      `<text x="${x}" y="${y + 2.1}" text-anchor="middle" font-family="${BODY_FONT}" font-size="6" font-weight="bold" fill="${PALETTE.paper}">${esc(s.label)}</text>` +
+      `<circle cx="${x}" cy="${y}" r="9" fill="transparent"/></g>`;
+  }).join('');
+}
+
 /** Order matters: big flat areas first, linework and markers on top. */
 const ORDER = ['desert', 'sea', 'hill', 'wood', 'river', 'road', 'port', 'bridge', 'wall'];
 
@@ -168,5 +180,5 @@ export function renderSvg(doc: MapDoc, standalone = false): string {
     : '';
   return `<svg ${attrs} viewBox="0 0 ${SHEET.w} ${SHEET.h}">${defs}` +
     `<rect width="${SHEET.w}" height="${SHEET.h}" fill="${bg}"/>` +
-    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${doc.grid ? gridSvg(fg) : ''}${objectivesSvg(doc, fg)}${frame(doc, bg, fg)}</svg>`;
+    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${doc.grid ? gridSvg(fg) : ''}${spawnsSvg(doc, fg)}${objectivesSvg(doc, fg)}${frame(doc, bg, fg)}</svg>`;
 }

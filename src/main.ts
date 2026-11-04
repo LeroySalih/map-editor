@@ -12,7 +12,7 @@ import {
 } from './sso';
 import './style.css';
 
-type Tool = 'select' | 'objective' | Terrain;
+type Tool = 'select' | 'objective' | 'spawn' | Terrain;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 let doc: MapDoc = newDoc();
@@ -21,7 +21,7 @@ let draft: Pt[] = [];
 /** The saved copy on the server this page is linked to, if any. */
 let remote: { id: string; version: number } | null = null;
 let accessToken: string | null = null;
-/** Ids of the selected terrain pieces and objective markers. */
+/** Ids of the selected terrain pieces, objective markers and spawn points. */
 const selected = new Set<string>();
 const history: string[] = [];
 /** The box being dragged in Select mode (mm), or null. */
@@ -42,7 +42,7 @@ function draw() {
   sheet.innerHTML = renderSvg(doc);
   const svg = sheet.querySelector('svg')!;
   for (const id of selected) {
-    svg.querySelector(`[data-id="${CSS.escape(id)}"],[data-obj="${CSS.escape(id)}"]`)
+    svg.querySelector(`[data-id="${CSS.escape(id)}"],[data-obj="${CSS.escape(id)}"],[data-spawn="${CSS.escape(id)}"]`)
       ?.setAttribute('filter', 'drop-shadow(0 0 1.5px #b8452e)');
   }
   if (marquee) {
@@ -69,7 +69,7 @@ function toMm(e: MouseEvent): Pt {
 }
 
 function finishDraft() {
-  if (tool === 'select' || tool === 'objective') return;
+  if (tool === 'select' || tool === 'objective' || tool === 'spawn') return;
   const need = CLOSED[tool] ? 3 : 2;
   if (draft.length >= need) {
     snapshot();
@@ -85,10 +85,10 @@ function finishDraft() {
 $('sheet').addEventListener('click', (e) => {
   const p = toMm(e);
   if (tool === 'select') {
-    // Terrain pieces carry data-id and objective markers data-obj; both can be selected and deleted.
+    // Terrain pieces carry data-id, objective markers data-obj and spawn points data-spawn; all can be selected and deleted.
     if (suppressClick) return;   // this click is the end of a box drag
-    const hit = (e.target as Element).closest('[data-id],[data-obj]');
-    const id = hit?.getAttribute('data-id') ?? hit?.getAttribute('data-obj') ?? null;
+    const hit = (e.target as Element).closest('[data-id],[data-obj],[data-spawn]');
+    const id = hit?.getAttribute('data-id') ?? hit?.getAttribute('data-obj') ?? hit?.getAttribute('data-spawn') ?? null;
     if (e.shiftKey) {                                      // Shift: add to or take away from the selection
       if (id) { if (selected.has(id)) selected.delete(id); else selected.add(id); }
     } else {
@@ -99,6 +99,10 @@ $('sheet').addEventListener('click', (e) => {
   } else if (tool === 'objective') {
     snapshot();
     doc.objectives.push({ id: uid(), x: p[0], y: p[1], label: nextObjectiveLabel() });
+    draw();
+  } else if (tool === 'spawn') {
+    snapshot();
+    doc.spawns.push({ id: uid(), x: p[0], y: p[1], label: nextSpawnLabel() });
     draw();
   } else {
     if (draft.length && dist(draft[draft.length - 1], p) < 0.5) return;
@@ -131,7 +135,7 @@ function onDragMove(e: PointerEvent) {
   marquee = { a: drag.a, b };
   selected.clear();
   drag.base.forEach((id) => selected.add(id));
-  idsInRect(doc.features, doc.objectives, rectOf(drag.a, b)).forEach((id) => selected.add(id));
+  idsInRect(doc.features, [...doc.objectives, ...doc.spawns], rectOf(drag.a, b)).forEach((id) => selected.add(id));
   draw();
 }
 // Only redraw when a box was really dragged. Redrawing replaces the element that was pressed, and the browser then
@@ -156,6 +160,7 @@ function setTool(t: Tool) {
   $('hint').textContent = isStraight(t)
     ? 'Straight piece: click the start, then click the end. Esc cancels.'
     : t === 'objective' ? 'Click to place a numbered objective marker.'
+    : t === 'spawn' ? 'Click to place a spawn point (lettered A, B, C ...).'
     : t === 'select' ? 'Click a piece, or drag a box around several. Shift adds to the selection. Delete removes it.'
     : 'Click to add points, double-click to finish. Esc cancels.';
   document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
@@ -173,11 +178,21 @@ function nextObjectiveLabel(): string {
   return String(n);
 }
 
+/** Spawn points are lettered: the first unused of A..Z, then Z1, Z2 ... */
+function nextSpawnLabel(): string {
+  const used = new Set(doc.spawns.map((s) => s.label));
+  for (let i = 0; ; i++) {
+    const label = i < 26 ? String.fromCharCode(65 + i) : `Z${i - 25}`;
+    if (!used.has(label)) return label;
+  }
+}
+
 function deleteSelected() {
   if (!selected.size) return;
   snapshot();
   doc.features = doc.features.filter((f) => !selected.has(f.id));
   doc.objectives = doc.objectives.filter((o) => !selected.has(o.id));
+  doc.spawns = doc.spawns.filter((s) => !selected.has(s.id));
   selected.clear();
   draw();
 }
@@ -223,7 +238,7 @@ $('bg-reset').addEventListener('click', () => {
   snapshot(); doc.background = DEFAULT_BG; syncPanel(); draw();
 });
 
-// Clear all: removes every terrain piece and objective (the title, rules, background and grid stay). Two clicks, and Undo brings it back.
+// Clear all: removes every terrain piece, objective and spawn point (the title, rules, background and grid stay). Two clicks, and Undo brings it back.
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 function disarmClear() {
   if (clearTimer) clearTimeout(clearTimer);
@@ -231,7 +246,7 @@ function disarmClear() {
   $('clear').classList.remove('armed'); $('clear').textContent = 'Clear all';
 }
 $('clear').addEventListener('click', () => {
-  if (!doc.features.length && !doc.objectives.length) return;
+  if (!doc.features.length && !doc.objectives.length && !doc.spawns.length) return;
   if (!clearTimer) {
     $('clear').classList.add('armed'); $('clear').textContent = 'Really clear all?';
     clearTimer = setTimeout(disarmClear, 3000);
@@ -239,7 +254,7 @@ $('clear').addEventListener('click', () => {
   }
   disarmClear();
   snapshot();
-  doc.features = []; doc.objectives = [];
+  doc.features = []; doc.objectives = []; doc.spawns = [];
   selected.clear(); draft = [];
   draw();
 });

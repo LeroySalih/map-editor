@@ -67,7 +67,7 @@ def test_limit_per_user(client, dino):
 def test_bad_maps_are_refused(client, dino):
     h = auth(dino.token())
     bad = [
-        {"version": 4, "features": [], "objectives": []},
+        {"version": 5, "features": [], "objectives": []},
         {"version": 2, "features": "no", "objectives": []},
         good_doc(features=[{"type": "lava", "points": []}]),
         good_doc(features=[{"type": "hill", "points": [[1, "x"]]}]),
@@ -76,6 +76,10 @@ def test_bad_maps_are_refused(client, dino):
         good_doc(title="x" * 201),
         good_doc(grid="yes"),
         good_doc(background="red"),
+        good_doc(spawns="A"),
+        good_doc(spawns=[{"x": 1}]),
+        good_doc(spawns=[{"x": 1, "y": 2, "label": "x" * 21}]),
+        good_doc(spawns=[{"x": 1, "y": 2}] * 101),
         good_doc(background="#12345"),
         good_doc(background='#fff"><script>'),
     ]
@@ -93,6 +97,15 @@ def test_v2_files_and_background_colours_are_accepted(client, dino):
     r = client.post("/api/v1/maps", json={"doc": good_doc(background="#10203A")}, headers=h)
     assert r.status_code == 201
     assert client.get(f"/api/v1/maps/{r.json()['id']}", headers=h).json()["doc"]["background"] == "#10203A"
+
+
+def test_spawn_points_are_stored_and_older_files_without_them_load(client, dino):
+    h = auth(dino.token())
+    r = client.post("/api/v1/maps", json={"doc": good_doc()}, headers=h)
+    assert r.status_code == 201
+    assert client.get(f"/api/v1/maps/{r.json()['id']}", headers=h).json()["doc"]["spawns"] == [{"id": "s", "x": 30, "y": 40, "label": "A"}]
+    v3 = {"version": 3, "title": "Old", "rules": "", "seed": 1, "grid": True, "background": "#e9dfc7", "features": [], "objectives": []}
+    assert client.post("/api/v1/maps", json={"doc": v3}, headers=h).status_code == 201
 
 
 def test_v1_files_are_accepted(client, dino):

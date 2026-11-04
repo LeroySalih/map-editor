@@ -5,8 +5,10 @@ export type Pt = [number, number];
 
 export interface Feature { id: string; type: Terrain; points: Pt[]; width?: number }
 export interface Objective { id: string; x: number; y: number; label: string }
+/** Where a side deploys. Lettered A, B, C... */
+export interface Spawn { id: string; x: number; y: number; label: string }
 export interface MapDoc {
-  version: 3;
+  version: 4;
   title: string;
   rules: string;
   seed: number;
@@ -16,6 +18,7 @@ export interface MapDoc {
   background: string;
   features: Feature[];
   objectives: Objective[];
+  spawns: Spawn[];
 }
 
 /** All units are millimetres. Sheet is A3 landscape, Y down (SVG space). */
@@ -49,7 +52,7 @@ export function uid(): string {
 
 export function newDoc(): MapDoc {
   return {
-    version: 3,
+    version: 4,
     title: 'Untitled Mission',
     rules: 'Objective: hold the marked positions.\nDeployment: opposite long edges, 12" in.',
     seed: 1,
@@ -57,6 +60,7 @@ export function newDoc(): MapDoc {
     background: DEFAULT_BG,
     features: [],
     objectives: [],
+    spawns: [],
   };
 }
 
@@ -65,8 +69,8 @@ const TERRAINS = Object.keys(CLOSED);
 /** Throws on anything that is not a map file we can safely render. */
 export function validate(o: unknown): MapDoc {
   const d = o as Partial<MapDoc> | null;
-  if (!d || typeof d !== 'object' || ![1, 2, 3].includes(d.version as number)) {
-    throw new Error('Not a map file (version 1, 2 or 3)');
+  if (!d || typeof d !== 'object' || ![1, 2, 3, 4].includes(d.version as number)) {
+    throw new Error('Not a map file (version 1 to 4)');
   }
   if (!Array.isArray(d.features) || !Array.isArray(d.objectives)) throw new Error('Malformed map file');
   const num = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
@@ -76,19 +80,24 @@ export function validate(o: unknown): MapDoc {
       throw new Error('Malformed feature');
     }
   }
+  if (d.spawns !== undefined && !Array.isArray(d.spawns)) throw new Error('Malformed map file');
+  for (const sp of d.spawns ?? []) {
+    if (!sp || !num(sp.x) || !num(sp.y)) throw new Error('Malformed spawn point');
+  }
   for (const ob of d.objectives) {
     if (!ob || !num(ob.x) || !num(ob.y)) throw new Error('Malformed objective');
   }
   if (d.background !== undefined && !isHex(d.background)) throw new Error('Bad background colour');
-  // v1 -> v2: grid added (on). v2 -> v3: background added (parchment).
+  // v1 -> v2: grid added (on). v2 -> v3: background added (parchment). v3 -> v4: spawn points added (none).
   return {
-    version: 3,
+    version: 4,
     title: String(d.title ?? ''),
     rules: String(d.rules ?? ''),
     seed: num(d.seed) ? (d.seed as number) : 1,
     grid: typeof d.grid === 'boolean' ? d.grid : true,
     background: isHex(d.background) ? d.background.toLowerCase() : DEFAULT_BG,
     features: d.features.map((f) => ({ ...f, id: String(f.id ?? uid()) })),
+    spawns: (d.spawns ?? []).map((sp) => ({ ...sp, id: String(sp.id ?? uid()), label: String(sp.label ?? '') })),
     objectives: d.objectives.map((ob) => ({ ...ob, id: String(ob.id ?? uid()), label: String(ob.label ?? '') })),
   };
 }
