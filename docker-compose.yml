@@ -1,0 +1,34 @@
+# Run with deploy.sh (it passes --env-file deploy/map-editor.env). Needs Docker Compose v2.
+name: map-editor
+
+services:
+  map-editor:
+    image: map-editor:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      args:
+        RUN_TESTS: ${RUN_TESTS:-1}
+        VITE_DINO_ISSUER: ${VITE_DINO_ISSUER:-https://dino.mr-salih.org}
+        VITE_DINO_CLIENT_ID: ${VITE_DINO_CLIENT_ID:-map-editor}
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: map-editor
+    restart: unless-stopped
+    env_file: deploy/map-editor.env
+    environment:          # fixed here so the env file cannot point them at host paths
+      MAP_HOST: 0.0.0.0
+      MAP_PORT: "5000"
+      MAP_DB_PATH: /data/maps.db
+      MAP_STATIC_DIR: /app/dist
+    volumes:
+      - map-editor-data:/data      # the SQLite database: back this up
+    networks:
+      - dino-app
+    # No ports are published. Other containers on dino-app reach it at http://map-editor:5000.
+    # To also reach it from this machine, add:  ports: ["127.0.0.1:5000:5000"]
+
+networks:
+  dino-app:
+    external: true
+
+volumes:
+  map-editor-data:

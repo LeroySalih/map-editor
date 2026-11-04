@@ -1,0 +1,12 @@
+.git
+.deploy-state
+node_modules
+dist
+dist.*
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/*.egg-info
+**/*.db
+deploy/map-editor.env
+*.log
