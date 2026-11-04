@@ -15,7 +15,7 @@ The user running it must be able to use Docker (member of the `docker` group, or
 The network is declared `external: true` in `docker-compose.yml`, so it is never created or removed here.
 If it is missing, `deploy.sh` says so; to make it yourself: `docker network create dino-app`.
 
-Register `https://<your address>/` as a redirect URL for the `map-editor` client in DINO. The container publishes **no host port**:
+Register the `map-editor` client in DINO with the redirect URL `https://<your address>/` (trailing slash, exact match) and an Audience equal to `MAP_SSO_AUDIENCE` in `deploy/map-editor.env` (`map-editor`). The container publishes **no host port**:
 other containers on `dino-app` (your reverse proxy) reach it at `http://map-editor:5000`. To reach it from the server itself,
 add `ports: ["127.0.0.1:5000:5000"]` to `docker-compose.yml`.
 
