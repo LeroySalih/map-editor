@@ -113,16 +113,19 @@ git merge-base --is-ancestor "$PREV" "$NEW" || die "This checkout has commits th
 
 BUILD_HASH="$(grep -E '^VITE_' "$ENV_FILE" | sort | sha256sum | cut -d' ' -f1)"
 OLD_HASH="$(cat "$STATE/build-env" 2>/dev/null || true)"
+ENV_HASH="$(sha256sum "$ENV_FILE" | cut -d' ' -f1)"          # the whole settings file, not only the VITE_* lines
+OLD_ENV_HASH="$(cat "$STATE/env-hash" 2>/dev/null || true)"
 OLD_ID="$(image_id)"
 RUNNING="$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo false)"
 
 NEED_BUILD=0
 if [ "$FORCE" = 1 ] || [ "$PREV" != "$NEW" ] || [ -z "$OLD_ID" ] || [ "$BUILD_HASH" != "$OLD_HASH" ]; then NEED_BUILD=1; fi
 NEED_UP=0
-if [ "$NEED_BUILD" = 1 ] || [ "$RUNNING" != true ]; then NEED_UP=1; fi
+if [ "$NEED_BUILD" = 1 ] || [ "$RUNNING" != true ] || [ "$ENV_HASH" != "$OLD_ENV_HASH" ]; then NEED_UP=1; fi
 
 yn() { [ "$1" = 1 ] && echo yes || echo no; }
 log "Deployed: ${PREV:0:8}   Latest: ${NEW:0:8}   (branch $BRANCH)"
+[ -z "$OLD_ENV_HASH" ] || [ "$ENV_HASH" = "$OLD_ENV_HASH" ] || log "deploy/map-editor.env changed since the last deploy: the container is recreated to pick the new settings up."
 log "Plan: build image: $(yn $NEED_BUILD) | update container: $(yn $NEED_UP) (only replaced if the image changed) | tests: $([ "$SKIP_TESTS" = 1 ] && echo skipped || echo "yes, during the build")"
 
 if [ "$CHECK" = 1 ]; then
@@ -158,9 +161,9 @@ STARTED=1
 dc up -d --no-build --remove-orphans
 if ! wait_healthy; then
   container_logs
-  die "The container did not become healthy (state: $(health); waited up to ${HEALTH_WAIT}s)."
+  die "The container did not become healthy (state: $(health); waited up to ${HEALTH_WAIT}s). If you just edited deploy/map-editor.env, check it first."
 fi
-echo "$BUILD_HASH" > "$STATE/build-env"
+echo "$BUILD_HASH" > "$STATE/build-env"; echo "$ENV_HASH" > "$STATE/env-hash"
 log "Container is healthy."
 
 # keep the five newest per-commit tags, and drop dangling images this project left behind
