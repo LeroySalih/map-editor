@@ -23,7 +23,7 @@ const FILL: Record<string, string> = {
 };
 const PATTERN: Record<string, string> = { sea: 'p-sea', desert: 'p-desert', wood: 'p-wood' };
 
-/** Wall, bridge and port: a straight piece drawn in a local frame (x along the piece). */
+/** Bridge and port: a straight piece drawn in a local frame (x along the piece). */
 function straightSvg(f: Feature): string {
   const a = f.points[0], b = f.points[f.points.length - 1];
   const L = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
@@ -36,11 +36,7 @@ function straightSvg(f: Feature): string {
     return d;
   };
   let body = '';
-  if (f.type === 'wall') {
-    body = `<line x2="${L}" stroke="${k}" stroke-width="3.2" stroke-linecap="butt"/>` +
-      `<line x2="${L}" stroke="${PALETTE.stone}" stroke-width="2" stroke-linecap="butt"/>` +
-      `<line x2="${L}" stroke="${k}" stroke-opacity=".55" stroke-width="2" stroke-dasharray=".35 3.65"/>`;
-  } else if (f.type === 'bridge') {
+  if (f.type === 'bridge') {
     const w = 7;
     body = `<rect y="${-w / 2}" width="${L}" height="${w}" fill="${PALETTE.plank}"/>` +
       `<path d="${planks(w, 2)}" stroke="${k}" stroke-opacity=".45" stroke-width=".35"/>` +
@@ -68,6 +64,14 @@ function featureSvg(f: Feature): string {
   const id = `data-id="${esc(f.id)}"`;
   if (!CLOSED[f.type]) {
     const d = smoothPath(f.points, false);
+    if (f.type === 'wall') {
+      // Straight segments with sharp corners: a stone wall, not a curve.
+      const d = 'M' + f.points.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join('L');
+      const line = (extra: string) => `<path d="${d}" fill="none" stroke-linejoin="miter" stroke-linecap="butt" ${extra}/>`;
+      return `<g ${id}>${line(`stroke="${PALETTE.ink}" stroke-width="3.2"`)}${line(`stroke="${PALETTE.stone}" stroke-width="2"`)}` +
+        `${line(`stroke="${PALETTE.ink}" stroke-opacity=".55" stroke-width="2" stroke-dasharray=".35 3.65"`)}` +
+        `${line('stroke="transparent" stroke-width="6" stroke-linejoin="round"')}</g>`;
+    }
     if (f.type === 'river') {
       const w = f.width ?? 6;
       return `<g ${id}><path d="${d}" fill="none" stroke="${PALETTE.ink}" stroke-width="${w + 1.2}" stroke-linecap="round" stroke-linejoin="round"/>` +

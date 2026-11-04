@@ -44,9 +44,16 @@ describe('map model', () => {
     for (const id of ['wall', 'bridge', 'port']) expect(svg).toContain(`data-id="${id}"`);
     expect(validate(JSON.parse(JSON.stringify(d))).features.length).toBe(3);
   });
+  it('draws a wall through many points with straight segments', () => {
+    const d = newDoc();
+    d.features.push({ id: 'w', type: 'wall', points: [[50, 50], [100, 50], [100, 100], [60, 120]] });
+    const svg = renderSvg(d);
+    expect(svg).toContain('M50.00,50.00L100.00,50.00L100.00,100.00L60.00,120.00');
+    expect(svg).not.toMatch(/data-id="w"[^>]*>(?:(?!<\/g>).)*C\d/);
+  });
   it('skips zero-length straight pieces', () => {
     const d = newDoc();
-    d.features.push({ id: 'z', type: 'wall', points: [[10, 10], [10, 10]] });
+    d.features.push({ id: 'z', type: 'bridge', points: [[10, 10], [10, 10]] });
     expect(renderSvg(d)).not.toContain('data-id="z"');
   });
   it('escapes text in the SVG', () => {

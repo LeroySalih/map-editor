@@ -28,8 +28,8 @@ export const CLOSED: Record<Terrain, boolean> = {
   wall: false, bridge: false, port: false,
 };
 
-/** Straight two-point pieces: click the start, then the end. */
-export const STRAIGHT: readonly Terrain[] = ['wall', 'bridge', 'port'];
+/** Straight two-point pieces: click the start, then the end. (Walls are multi-point polylines.) */
+export const STRAIGHT: readonly Terrain[] = ['bridge', 'port'];
 export const isStraight = (t: string): boolean => (STRAIGHT as readonly string[]).includes(t);
 
 export const TERRAIN_LABEL: Record<Terrain, string> = {
