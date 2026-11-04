@@ -43,7 +43,7 @@ if command -v flock >/dev/null 2>&1; then
   exec 9>"$STATE/lock"
   flock -n 9 || { log "ERROR: another deploy is already running."; exit 1; }
 fi
-exec > >(tee -a "$STATE/deploy.log") 2>&1
+exec > >(tee -a "$STATE/deploy.log" 9>&-) 2>&1   # (tee must not hold the lock after we exit)
 
 healthy() {
   local url="${DEPLOY_HEALTH_URL:-http://127.0.0.1:${MAP_PORT:-5000}/health}"
