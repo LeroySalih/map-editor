@@ -1,5 +1,5 @@
 import { centroid, scaleAbout, smoothPath } from './geometry';
-import { CLOSED, MARGIN, SHEET, type Feature, type MapDoc } from './model';
+import { CLOSED, GRID_MM, MARGIN, SHEET, type Feature, type MapDoc } from './model';
 
 export const PALETTE = {
   paper: '#e9dfc7', ink: '#1c1a17', hill: '#b9a77c', wood: '#7c8f62',
@@ -45,6 +45,32 @@ function featureSvg(f: Feature): string {
   return out + '</g>';
 }
 
+/** Flat-top hex grid, one path. Each hex draws only its N, NE and SE edges so
+ *  every shared edge is drawn once; the range runs one hex past the border and is clipped. */
+export function hexGridPath(): string {
+  const h = GRID_MM / 2;
+  const R = GRID_MM / Math.sqrt(3);
+  const f = (v: number) => v.toFixed(2);
+  let d = '';
+  for (let c = 0; ; c++) {
+    const cx = MARGIN + R + c * 1.5 * R;
+    if (cx - R > SHEET.w - MARGIN) break;
+    const off = c % 2 ? h : 0;
+    for (let row = -1; ; row++) {
+      const cy = MARGIN + h + off + row * GRID_MM;
+      if (cy - h > SHEET.h - MARGIN) break;
+      d += `M${f(cx - R / 2)},${f(cy - h)}H${f(cx + R / 2)}L${f(cx + R)},${f(cy)}L${f(cx + R / 2)},${f(cy + h)}`;
+    }
+  }
+  return d;
+}
+
+function gridSvg(): string {
+  const m = MARGIN;
+  return `<clipPath id="grid-clip"><rect x="${m}" y="${m}" width="${SHEET.w - 2 * m}" height="${SHEET.h - 2 * m}"/></clipPath>` +
+    `<path id="hexgrid" d="${hexGridPath()}" clip-path="url(#grid-clip)" fill="none" stroke="${PALETTE.ink}" stroke-opacity=".4" stroke-width=".3" stroke-linejoin="round"/>`;
+}
+
 /** Corner brackets and a double rule: original gothic-industrial framing. */
 function frame(doc: MapDoc): string {
   const { w, h } = SHEET, m = MARGIN, i = m - 3, L = 14;
@@ -81,5 +107,5 @@ export function renderSvg(doc: MapDoc, standalone = false): string {
     : '';
   return `<svg ${attrs} viewBox="0 0 ${SHEET.w} ${SHEET.h}">${defs}` +
     `<rect width="${SHEET.w}" height="${SHEET.h}" fill="${PALETTE.paper}"/>` +
-    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${objectivesSvg(doc)}${frame(doc)}</svg>`;
+    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${doc.grid ? gridSvg() : ''}${objectivesSvg(doc)}${frame(doc)}</svg>`;
 }

@@ -128,7 +128,11 @@ $<HTMLInputElement>('title').addEventListener('input', (e) => {
 $<HTMLTextAreaElement>('rules').addEventListener('input', (e) => {
   doc.rules = (e.target as HTMLTextAreaElement).value; draw();
 });
+$<HTMLInputElement>('grid').addEventListener('change', (e) => {
+  snapshot(); doc.grid = (e.target as HTMLInputElement).checked; draw();
+});
 function syncPanel() {
+  $<HTMLInputElement>('grid').checked = doc.grid;
   $<HTMLInputElement>('title').value = doc.title;
   $<HTMLTextAreaElement>('rules').value = doc.rules;
   $<HTMLInputElement>('seed').value = String(doc.seed);
