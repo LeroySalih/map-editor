@@ -4,6 +4,10 @@ import {
   CLOSED, SHEET, isStraight, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
 } from './model';
 import { renderSvg } from './render';
+import {
+  beginSignIn, cleanAddress, defaultConfig, endSignIn, finishSignIn, refreshTokens, restoreSignIn,
+  SsoError, type Person, type Tokens,
+} from './sso';
 import './style.css';
 
 type Tool = 'select' | 'objective' | Terrain;
@@ -181,6 +185,54 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   } catch (err) { alert(`Could not load: ${(err as Error).message}`); }
   input.value = '';
 });
+
+// --- Sign in with DINO. The name is shown here and kept in memory only. ---
+const sso = defaultConfig();
+let person: Person | null = null;
+let renewTimer: ReturnType<typeof setTimeout> | null = null;
+
+function renderAuth(msg = '') {
+  $('signin').hidden = person !== null;
+  $('signout').hidden = person === null;
+  const who = $('who');
+  who.hidden = person === null;
+  who.textContent = person ? (person.name ?? `Signed in (${person.id.slice(0, 8)})`) : '';
+  $('auth-msg').textContent = msg;
+}
+
+function keepAlive(t: Tokens) {
+  if (renewTimer) clearTimeout(renewTimer);
+  renewTimer = setTimeout(async () => {
+    try {
+      const next = await refreshTokens(sso);
+      if (next) keepAlive(next);
+      else { person = null; renderAuth('Your DINO sign-in ended. Sign in again.'); }
+    } catch { // DINO unreachable: try again soon
+      keepAlive({ ...t, expiresAt: Date.now() + 75_000 });
+    }
+  }, Math.max(1_000, t.expiresAt - Date.now() - 60_000));
+}
+
+$('signin').addEventListener('click', () => {
+  beginSignIn(sso, location, (url) => location.assign(url)).catch(() => renderAuth('Could not start the DINO sign-in.'));
+});
+$('signout').addEventListener('click', async () => {
+  if (renewTimer) clearTimeout(renewTimer);
+  person = null;
+  renderAuth();
+  await endSignIn(sso);
+});
+
+(async () => {
+  try {
+    const r = (await finishSignIn(sso, location.search, location)) ?? (await restoreSignIn(sso));
+    if (r) { person = r.person; keepAlive(r.tokens); }
+    renderAuth();
+  } catch (e) {
+    renderAuth(e instanceof SsoError ? e.message : 'Sign-in failed. Try again.');
+  }
+  cleanAddress();
+})();
 
 syncPanel();
 draw();
