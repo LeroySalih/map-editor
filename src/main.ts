@@ -238,6 +238,28 @@ $('bg-reset').addEventListener('click', () => {
   snapshot(); doc.background = DEFAULT_BG; syncPanel(); draw();
 });
 
+// New map: a blank page that is not linked to any saved map, so the next Save makes a separate map. Two clicks when there is
+// something on the page (Undo brings the page back, but not the link, so a saved map is never overwritten by accident).
+let newTimer: ReturnType<typeof setTimeout> | null = null;
+function disarmNew() {
+  if (newTimer) clearTimeout(newTimer);
+  newTimer = null;
+  $('new-map').classList.remove('armed'); $('new-map').textContent = 'New map';
+}
+$('new-map').addEventListener('click', () => {
+  const hasContent = doc.features.length > 0 || doc.objectives.length > 0 || doc.spawns.length > 0;
+  if (hasContent && !newTimer) {
+    $('new-map').classList.add('armed'); $('new-map').textContent = 'Really start new?';
+    newTimer = setTimeout(disarmNew, 3000);
+    return;
+  }
+  disarmNew();
+  snapshot();
+  doc = newDoc(); remote = null; selected.clear(); draft = [];
+  syncPanel(); draw();
+  renderAuth(person ? 'Started a new map. It is not saved yet: press "Save to my account".' : '');
+});
+
 // Clear all: removes every terrain piece, objective and spawn point (the title, rules, background and grid stay). Two clicks, and Undo brings it back.
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 function disarmClear() {
@@ -303,7 +325,7 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   if (!f) return;
   try {
     const next = validate(JSON.parse(await f.text()));
-    snapshot(); doc = next; selected.clear(); draft = []; remote = null; syncPanel(); draw();
+    snapshot(); doc = next; selected.clear(); draft = []; remote = null; syncPanel(); draw(); renderAuth();
   } catch (err) { alert(`Could not load: ${(err as Error).message}`); }
   input.value = '';
 });
@@ -317,6 +339,8 @@ function renderAuth(msg = '') {
   $('signin').hidden = person !== null;
   $('signout').hidden = person === null;
   $('save-remote').hidden = person === null;
+  $('save-remote').textContent = remote ? 'Save changes' : 'Save to my account';   // saving again updates the linked map
+  $('save-new').hidden = person === null || remote === null;                         // only meaningful once a map is linked
   $('my-maps').hidden = person === null;
   const who = $('who');
   who.hidden = person === null;
@@ -371,15 +395,16 @@ async function authed<T>(call: (token: string) => Promise<T>): Promise<T> {
   }
 }
 
-/** Save this page to the person's account: a new map the first time, then the same map. */
-async function saveRemote() {
+/** Save this page to the person's account. The first save makes a new map and links the page to it; later saves update that map.
+ *  `asNew` always makes a separate copy (and links the page to it). */
+async function saveRemote(asNew = false) {
   if (!accessToken) return renderAuth('Sign in to save to your account.');
   renderAuth('Saving…');
   try {
-    const link = remote;
+    const link = asNew ? null : remote;
     const r = await authed((t) => (link ? saveMap(t, link.id, doc, link.version) : createMap(t, doc)));
     remote = { id: r.id, version: r.version };
-    renderAuth(`Saved "${doc.title}" to your account.`);
+    renderAuth(asNew || !link ? `Saved "${doc.title}" as a new map in your account.` : `Saved changes to "${doc.title}".`);
   } catch (e) {
     if (e instanceof ApiError && e.code === 'conflict') {
       remote = null; // the next save makes a new copy instead of overwriting the newer one
@@ -388,6 +413,7 @@ async function saveRemote() {
   }
 }
 $('save-remote').addEventListener('click', () => void saveRemote());
+$('save-new').addEventListener('click', () => void saveRemote(true));
 
 const dlg = $<HTMLDialogElement>('mymaps');
 async function showMyMaps() {
