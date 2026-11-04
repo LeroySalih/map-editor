@@ -1,3 +1,4 @@
+import { ApiError, createMap, deleteMap, listMaps, openMap, saveMap } from './api';
 import { dist } from './geometry';
 import { genMap } from './generate';
 import {
@@ -16,6 +17,9 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 let doc: MapDoc = newDoc();
 let tool: Tool = 'select';
 let draft: Pt[] = [];
+/** The saved copy on the server this page is linked to, if any. */
+let remote: { id: string; version: number } | null = null;
+let accessToken: string | null = null;
 let selected: string | null = null;
 const history: string[] = [];
 
@@ -181,7 +185,7 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   if (!f) return;
   try {
     const next = validate(JSON.parse(await f.text()));
-    snapshot(); doc = next; selected = null; draft = []; syncPanel(); draw();
+    snapshot(); doc = next; selected = null; draft = []; remote = null; syncPanel(); draw();
   } catch (err) { alert(`Could not load: ${(err as Error).message}`); }
   input.value = '';
 });
@@ -194,6 +198,8 @@ let renewTimer: ReturnType<typeof setTimeout> | null = null;
 function renderAuth(msg = '') {
   $('signin').hidden = person !== null;
   $('signout').hidden = person === null;
+  $('save-remote').hidden = person === null;
+  $('my-maps').hidden = person === null;
   const who = $('who');
   who.hidden = person === null;
   who.textContent = person ? (person.name ?? `Signed in (${person.id.slice(0, 8)})`) : '';
@@ -205,8 +211,8 @@ function keepAlive(t: Tokens) {
   renewTimer = setTimeout(async () => {
     try {
       const next = await refreshTokens(sso);
-      if (next) keepAlive(next);
-      else { person = null; renderAuth('Your DINO sign-in ended. Sign in again.'); }
+      if (next) { accessToken = next.accessToken; keepAlive(next); }
+      else { person = null; accessToken = null; remote = null; renderAuth('Your DINO sign-in ended. Sign in again.'); }
     } catch { // DINO unreachable: try again soon
       keepAlive({ ...t, expiresAt: Date.now() + 75_000 });
     }
@@ -218,15 +224,80 @@ $('signin').addEventListener('click', () => {
 });
 $('signout').addEventListener('click', async () => {
   if (renewTimer) clearTimeout(renewTimer);
-  person = null;
+  person = null; accessToken = null; remote = null;
   renderAuth();
   await endSignIn(sso);
 });
 
+const failText = (e: unknown): string =>
+  e instanceof ApiError
+    ? e.status === 401 ? 'Your sign-in has expired. Sign in again.' : e.message
+    : 'Something went wrong. Try again.';
+
+/** Save this page to the person's account: a new map the first time, then the same map. */
+async function saveRemote() {
+  if (!accessToken) return renderAuth('Sign in to save to your account.');
+  renderAuth('Saving…');
+  try {
+    const r = remote ? await saveMap(accessToken, remote.id, doc, remote.version) : await createMap(accessToken, doc);
+    remote = { id: r.id, version: r.version };
+    renderAuth(`Saved "${doc.title}" to your account.`);
+  } catch (e) {
+    if (e instanceof ApiError && e.code === 'conflict') {
+      remote = null; // the next save makes a new copy instead of overwriting the newer one
+      renderAuth('This map was changed somewhere else. Press Save again to keep this as a new copy, or open the newer one from My maps.');
+    } else renderAuth(failText(e));
+  }
+}
+$('save-remote').addEventListener('click', () => void saveRemote());
+
+const dlg = $<HTMLDialogElement>('mymaps');
+async function showMyMaps() {
+  if (!accessToken) return;
+  const msg = $('mymaps-msg'), list = $('mymaps-list');
+  list.textContent = ''; msg.textContent = 'Loading…';
+  if (!dlg.open) dlg.showModal();
+  try {
+    const maps = await listMaps(accessToken);
+    msg.textContent = maps.length ? '' : 'You have no saved maps yet. Press "Save to my account" to keep this one.';
+    for (const m of maps) {
+      const li = document.createElement('li');
+      if (remote?.id === m.id) li.className = 'current';
+      const name = document.createElement('span'); name.className = 'name'; name.textContent = m.title;
+      const when = document.createElement('span'); when.className = 'when'; when.textContent = new Date(m.updatedAt).toLocaleString();
+      const open = document.createElement('button'); open.textContent = 'Open';
+      const del = document.createElement('button'); del.textContent = 'Delete';
+      open.addEventListener('click', async () => {
+        try {
+          const rec = await openMap(accessToken!, m.id);
+          const next = validate(rec.doc);
+          snapshot(); doc = next; remote = { id: rec.id, version: rec.version };
+          selected = null; draft = []; syncPanel(); draw(); dlg.close();
+          renderAuth(`Opened "${doc.title}".`);
+        } catch (e) { msg.textContent = failText(e); }
+      });
+      let armed = false;
+      del.addEventListener('click', async () => {
+        if (!armed) { armed = true; del.textContent = 'Really delete?'; return; }
+        try {
+          await deleteMap(accessToken!, m.id);
+          if (remote?.id === m.id) remote = null;
+          li.remove();
+          if (!list.children.length) msg.textContent = 'You have no saved maps yet.';
+        } catch (e) { msg.textContent = failText(e); }
+      });
+      li.append(name, when, open, del);
+      list.append(li);
+    }
+  } catch (e) { msg.textContent = failText(e); }
+}
+$('my-maps').addEventListener('click', () => void showMyMaps());
+$('mymaps-close').addEventListener('click', () => dlg.close());
+
 (async () => {
   try {
     const r = (await finishSignIn(sso, location.search, location)) ?? (await restoreSignIn(sso));
-    if (r) { person = r.person; keepAlive(r.tokens); }
+    if (r) { person = r.person; accessToken = r.tokens.accessToken; keepAlive(r.tokens); }
     renderAuth();
   } catch (e) {
     renderAuth(e instanceof SsoError ? e.message : 'Sign-in failed. Try again.');

@@ -29,6 +29,8 @@
   </div>
   <div id="auth">
     <button id="signin">Sign in with DINO</button>
+    <button id="save-remote" hidden>Save to my account</button>
+    <button id="my-maps" hidden>My maps</button>
     <span id="who" hidden></span>
     <button id="signout" hidden>Sign out</button>
     <span id="auth-msg" role="status"></span>
@@ -50,6 +52,12 @@
     <p id="hint">Click to add points, double-click to finish. Esc cancels.</p>
   </aside>
 </main>
+<dialog id="mymaps">
+  <h2>My maps</h2>
+  <p id="mymaps-msg" role="status"></p>
+  <ul id="mymaps-list"></ul>
+  <button id="mymaps-close">Close</button>
+</dialog>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
