@@ -1,5 +1,5 @@
 import { centroid, scaleAbout, smoothPath } from './geometry';
-import { CLOSED, GRID_MM, MARGIN, SHEET, isStraight, type Feature, type MapDoc } from './model';
+import { CLOSED, DEFAULT_BG, GRID_MM, MARGIN, SHEET, isHex, isStraight, type Feature, type MapDoc } from './model';
 
 export const PALETTE = {
   paper: '#e9dfc7', ink: '#1c1a17', hill: '#b9a77c', wood: '#7c8f62',
@@ -111,35 +111,46 @@ export function hexGridPath(): string {
   return d;
 }
 
-function gridSvg(): string {
+/** Relative luminance of a #rrggbb colour, 0 (black) to 1 (white). */
+export function luminance(hex: string): number {
+  const c = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+/** Linework colour for the frame, grid and text: dark ink on a light sheet, light on a dark one. */
+export const lineColourFor = (bg: string): string => (luminance(bg) < 0.25 ? PALETTE.paper : PALETTE.ink);
+
+function gridSvg(fg: string): string {
   const m = MARGIN;
   return `<clipPath id="grid-clip"><rect x="${m}" y="${m}" width="${SHEET.w - 2 * m}" height="${SHEET.h - 2 * m}"/></clipPath>` +
-    `<path id="hexgrid" d="${hexGridPath()}" clip-path="url(#grid-clip)" fill="none" stroke="${PALETTE.ink}" stroke-opacity=".4" stroke-width=".3" stroke-linejoin="round"/>`;
+    `<path id="hexgrid" d="${hexGridPath()}" clip-path="url(#grid-clip)" fill="none" stroke="${fg}" stroke-opacity=".4" stroke-width=".3" stroke-linejoin="round"/>`;
 }
 
 /** Corner brackets and a double rule: original gothic-industrial framing. */
-function frame(doc: MapDoc): string {
+function frame(doc: MapDoc, bg: string, fg: string): string {
   const { w, h } = SHEET, m = MARGIN, i = m - 3, L = 14;
   const corner = (x: number, y: number, sx: number, sy: number) =>
-    `<path d="M${x},${y + sy * L} V${y} H${x + sx * L} M${x + sx * 3},${y + sy * (L - 3)} V${y + sy * 3} H${x + sx * (L - 3)}" fill="none" stroke="${PALETTE.ink}" stroke-width=".9"/>`;
+    `<path d="M${x},${y + sy * L} V${y} H${x + sx * L} M${x + sx * 3},${y + sy * (L - 3)} V${y + sy * 3} H${x + sx * (L - 3)}" fill="none" stroke="${fg}" stroke-width=".9"/>`;
   const rules = doc.rules.split('\n').slice(0, 4);
   const rulesSvg = rules.map((t, n) =>
-    `<text x="${m + 2}" y="${h - m - 12 + n * 4.2}" font-family="${BODY_FONT}" font-size="3.4" fill="${PALETTE.ink}">${esc(t)}</text>`).join('');
+    `<text x="${m + 2}" y="${h - m - 12 + n * 4.2}" font-family="${BODY_FONT}" font-size="3.4" fill="${fg}">${esc(t)}</text>`).join('');
   return `<g id="frame">
-<rect x="${i}" y="${i}" width="${w - 2 * i}" height="${h - 2 * i}" fill="none" stroke="${PALETTE.ink}" stroke-width="1.4"/>
-<rect x="${m}" y="${m}" width="${w - 2 * m}" height="${h - 2 * m}" fill="none" stroke="${PALETTE.ink}" stroke-width=".4"/>
+<rect x="${i}" y="${i}" width="${w - 2 * i}" height="${h - 2 * i}" fill="none" stroke="${fg}" stroke-width="1.4"/>
+<rect x="${m}" y="${m}" width="${w - 2 * m}" height="${h - 2 * m}" fill="none" stroke="${fg}" stroke-width=".4"/>
 ${corner(i, i, 1, 1)}${corner(w - i, i, -1, 1)}${corner(i, h - i, 1, -1)}${corner(w - i, h - i, -1, -1)}
-<rect x="${m}" y="${m}" width="${w - 2 * m}" height="9" fill="${PALETTE.ink}"/>
-<text x="${w / 2}" y="${m + 6.6}" text-anchor="middle" font-family="${TITLE_FONT}" font-size="7" fill="${PALETTE.paper}">${esc(doc.title)}</text>
-<rect x="${m}" y="${h - m - 18}" width="${w - 2 * m}" height="18" fill="${PALETTE.paper}" fill-opacity=".92" stroke="${PALETTE.ink}" stroke-width=".4"/>
+<rect x="${m}" y="${m}" width="${w - 2 * m}" height="9" fill="${fg}"/>
+<text x="${w / 2}" y="${m + 6.6}" text-anchor="middle" font-family="${TITLE_FONT}" font-size="7" fill="${bg}">${esc(doc.title)}</text>
+<rect x="${m}" y="${h - m - 18}" width="${w - 2 * m}" height="18" fill="${bg}" fill-opacity=".92" stroke="${fg}" stroke-width=".4"/>
 ${rulesSvg}
 </g>`;
 }
 
-function objectivesSvg(doc: MapDoc): string {
+function objectivesSvg(doc: MapDoc, fg: string): string {
   return doc.objectives.map((o) =>
     `<g data-obj="${esc(o.id)}"><circle cx="${o.x}" cy="${o.y}" r="5" fill="${PALETTE.accent}" stroke="${PALETTE.ink}" stroke-width=".8"/>` +
-    `<path d="M${o.x - 7},${o.y} h3 M${o.x + 4},${o.y} h3 M${o.x},${o.y - 7} v3 M${o.x},${o.y + 4} v3" stroke="${PALETTE.ink}" stroke-width=".7"/>` +
+    `<path d="M${o.x - 7},${o.y} h3 M${o.x + 4},${o.y} h3 M${o.x},${o.y - 7} v3 M${o.x},${o.y + 4} v3" stroke="${fg}" stroke-width=".7"/>` +
     `<text x="${o.x}" y="${o.y + 2}" text-anchor="middle" font-family="${BODY_FONT}" font-size="6" font-weight="bold" fill="${PALETTE.paper}">${esc(o.label)}</text></g>`).join('');
 }
 
@@ -148,10 +159,12 @@ const ORDER = ['desert', 'sea', 'hill', 'wood', 'river', 'road', 'port', 'bridge
 
 export function renderSvg(doc: MapDoc, standalone = false): string {
   const feats = [...doc.features].sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));
+  const bg = isHex(doc.background) ? doc.background : DEFAULT_BG; // never trust a colour into the SVG
+  const fg = lineColourFor(bg);
   const attrs = standalone
     ? `xmlns="http://www.w3.org/2000/svg" width="${SHEET.w}mm" height="${SHEET.h}mm"`
     : '';
   return `<svg ${attrs} viewBox="0 0 ${SHEET.w} ${SHEET.h}">${defs}` +
-    `<rect width="${SHEET.w}" height="${SHEET.h}" fill="${PALETTE.paper}"/>` +
-    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${doc.grid ? gridSvg() : ''}${objectivesSvg(doc)}${frame(doc)}</svg>`;
+    `<rect width="${SHEET.w}" height="${SHEET.h}" fill="${bg}"/>` +
+    `<g id="terrain">${feats.map(featureSvg).join('')}</g>${doc.grid ? gridSvg(fg) : ''}${objectivesSvg(doc, fg)}${frame(doc, bg, fg)}</svg>`;
 }

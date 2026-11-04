@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { genMap } from './generate';
 import { newDoc, validate } from './model';
-import { hexGridPath, renderSvg } from './render';
+import { hexGridPath, lineColourFor, luminance, renderSvg } from './render';
 
 describe('map model', () => {
   it('round-trips through validate', () => {
@@ -10,7 +10,7 @@ describe('map model', () => {
     expect(validate(JSON.parse(JSON.stringify(d))).features.length).toBe(d.features.length);
   });
   it('rejects bad files', () => {
-    expect(() => validate({ version: 3 })).toThrow();
+    expect(() => validate({ version: 4 })).toThrow();
     expect(() => validate({ version: 1, features: [{ type: 'lava', points: [] }], objectives: [] })).toThrow();
   });
   it('generation is deterministic per seed', () => {
@@ -20,8 +20,42 @@ describe('map model', () => {
   it('migrates v1 files with the grid on', () => {
     const v1 = { version: 1, title: 't', rules: '', seed: 1, features: [], objectives: [] };
     const d = validate(v1);
-    expect(d.version).toBe(2);
+    expect(d.version).toBe(3);
     expect(d.grid).toBe(true);
+    expect(d.background).toBe('#e9dfc7');
+  });
+  it('keeps a valid background colour and refuses a bad one', () => {
+    const d = newDoc();
+    d.background = '#10203A';
+    const back = validate(JSON.parse(JSON.stringify(d)));
+    expect(back.background).toBe('#10203a');
+    expect(renderSvg(back)).toContain('fill="#10203a"');
+    expect(() => validate({ ...d, background: 'red' })).toThrow();
+    expect(() => validate({ ...d, background: '#fff"/><script>' })).toThrow();
+  });
+  it('never puts an untrusted colour into the SVG', () => {
+    const d = newDoc();
+    d.background = '"/><script>alert(1)</script>';
+    const svg = renderSvg(d);
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('fill="#e9dfc7"');
+  });
+  it('uses light linework on a dark sheet and dark linework on a light one', () => {
+    expect(luminance('#000000')).toBeCloseTo(0, 5);
+    expect(luminance('#ffffff')).toBeCloseTo(1, 5);
+    expect(lineColourFor('#e9dfc7')).toBe('#1c1a17');
+    expect(lineColourFor('#ffffff')).toBe('#1c1a17');
+    expect(lineColourFor('#1b2a3c')).toBe('#e9dfc7');
+    expect(lineColourFor('#000000')).toBe('#e9dfc7');
+    const d = newDoc();
+    d.background = '#1b2a3c';
+    const svg = renderSvg(d);
+    expect(svg).toMatch(/<rect x="14" y="14" width="392" height="9" fill="#e9dfc7"\/>/); // title bar is light
+    expect(svg).toMatch(/font-size="7" fill="#1b2a3c"/); // its text takes the sheet colour
+  });
+  it('v2 files load with the default background', () => {
+    const v2 = { version: 2, title: 't', rules: '', seed: 1, grid: false, features: [], objectives: [] };
+    expect(validate(v2)).toMatchObject({ version: 3, grid: false, background: '#e9dfc7' });
   });
   it('draws the hex grid only when enabled', () => {
     const d = newDoc();

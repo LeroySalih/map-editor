@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from .errors import ApiError
 
-VERSIONS = (1, 2)
+VERSIONS = (1, 2, 3)
 TERRAINS = frozenset({"hill", "river", "sea", "wood", "desert", "road", "wall", "bridge", "port"})
 MAX_FEATURES = 5_000
 MAX_POINTS_PER_FEATURE = 2_000
 MAX_OBJECTIVES = 500
+HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 COORD_LIMIT = 100_000.0  # mm; the sheet is 420 x 297
 
 
@@ -26,7 +28,7 @@ def _num(v: Any) -> bool:
 def validate_doc(doc: Any) -> str:
     """Raises ApiError 422 when the document is not a map we can safely keep. Returns its title (max 100 chars)."""
     if not isinstance(doc, dict) or doc.get("version") not in VERSIONS or isinstance(doc.get("version"), bool):
-        raise _bad("That is not a map file (version 1 or 2).")
+        raise _bad("That is not a map file (version 1, 2 or 3).")
     feats, objs = doc.get("features"), doc.get("objectives")
     if not isinstance(feats, list) or not isinstance(objs, list):
         raise _bad("The map has no feature or objective list.")
@@ -53,6 +55,8 @@ def validate_doc(doc: Any) -> str:
         raise _bad("The title or rules text is too long.")
     if "grid" in doc and not isinstance(doc["grid"], bool):
         raise _bad("The grid setting must be true or false.")
+    if "background" in doc and not (isinstance(doc["background"], str) and HEX.match(doc["background"])):
+        raise _bad("The background colour must look like #e9dfc7.")
     if "seed" in doc and not _num(doc["seed"]):
         raise _bad("The seed must be a number.")
     return title.strip()[:100] or "Untitled"

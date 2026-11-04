@@ -52,7 +52,7 @@ def auth(token):
 
 
 def good_doc(title="My map", **over):
-    d = {"version": 2, "title": title, "rules": "Hold the middle.", "seed": 1, "grid": True,
+    d = {"version": 3, "background": "#e9dfc7", "title": title, "rules": "Hold the middle.", "seed": 1, "grid": True,
          "features": [{"id": "a", "type": "hill", "points": [[10, 10], [60, 10], [40, 50]]},
                       {"id": "b", "type": "wall", "points": [[0, 0], [100, 0], [100, 80]]}],
          "objectives": [{"id": "o", "x": 50, "y": 50, "label": "1"}]}

@@ -67,7 +67,7 @@ def test_limit_per_user(client, dino):
 def test_bad_maps_are_refused(client, dino):
     h = auth(dino.token())
     bad = [
-        {"version": 3, "features": [], "objectives": []},
+        {"version": 4, "features": [], "objectives": []},
         {"version": 2, "features": "no", "objectives": []},
         good_doc(features=[{"type": "lava", "points": []}]),
         good_doc(features=[{"type": "hill", "points": [[1, "x"]]}]),
@@ -75,12 +75,24 @@ def test_bad_maps_are_refused(client, dino):
         good_doc(objectives=[{"x": True, "y": 1}]),
         good_doc(title="x" * 201),
         good_doc(grid="yes"),
+        good_doc(background="red"),
+        good_doc(background="#12345"),
+        good_doc(background='#fff"><script>'),
     ]
     for d in bad:
         r = client.post("/api/v1/maps", json={"doc": d}, headers=h)
         assert r.status_code == 422, d
     assert client.post("/api/v1/maps", json={"doc": "text"}, headers=h).status_code == 422
     assert client.get("/api/v1/maps", headers=h).json() == []
+
+
+def test_v2_files_and_background_colours_are_accepted(client, dino):
+    h = auth(dino.token())
+    v2 = {"version": 2, "title": "Old", "rules": "", "seed": 1, "grid": True, "features": [], "objectives": []}
+    assert client.post("/api/v1/maps", json={"doc": v2}, headers=h).status_code == 201
+    r = client.post("/api/v1/maps", json={"doc": good_doc(background="#10203A")}, headers=h)
+    assert r.status_code == 201
+    assert client.get(f"/api/v1/maps/{r.json()['id']}", headers=h).json()["doc"]["background"] == "#10203A"
 
 
 def test_v1_files_are_accepted(client, dino):

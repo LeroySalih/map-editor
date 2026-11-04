@@ -2,7 +2,7 @@ import { ApiError, createMap, deleteMap, listMaps, openMap, saveMap } from './ap
 import { dist } from './geometry';
 import { genMap } from './generate';
 import {
-  CLOSED, SHEET, isStraight, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
+  CLOSED, DEFAULT_BG, SHEET, isStraight, newDoc, uid, validate, type MapDoc, type Pt, type Terrain,
 } from './model';
 import { renderSvg } from './render';
 import {
@@ -142,11 +142,45 @@ $<HTMLInputElement>('title').addEventListener('input', (e) => {
 $<HTMLTextAreaElement>('rules').addEventListener('input', (e) => {
   doc.rules = (e.target as HTMLTextAreaElement).value; draw();
 });
+// Background colour: update live while the picker is dragged, but make one undo step per pick.
+let bgGesture = false;
+$<HTMLInputElement>('bg').addEventListener('input', (e) => {
+  if (!bgGesture) { snapshot(); bgGesture = true; }
+  doc.background = (e.target as HTMLInputElement).value; draw();
+});
+$<HTMLInputElement>('bg').addEventListener('change', () => { bgGesture = false; });
+$('bg-reset').addEventListener('click', () => {
+  if (doc.background === DEFAULT_BG) return;
+  snapshot(); doc.background = DEFAULT_BG; syncPanel(); draw();
+});
+
+// Clear all: removes every terrain piece and objective (the title, rules, background and grid stay). Two clicks, and Undo brings it back.
+let clearTimer: ReturnType<typeof setTimeout> | null = null;
+function disarmClear() {
+  if (clearTimer) clearTimeout(clearTimer);
+  clearTimer = null;
+  $('clear').classList.remove('armed'); $('clear').textContent = 'Clear all';
+}
+$('clear').addEventListener('click', () => {
+  if (!doc.features.length && !doc.objectives.length) return;
+  if (!clearTimer) {
+    $('clear').classList.add('armed'); $('clear').textContent = 'Really clear all?';
+    clearTimer = setTimeout(disarmClear, 3000);
+    return;
+  }
+  disarmClear();
+  snapshot();
+  doc.features = []; doc.objectives = [];
+  selected = null; draft = [];
+  draw();
+});
+
 $<HTMLInputElement>('grid').addEventListener('change', (e) => {
   snapshot(); doc.grid = (e.target as HTMLInputElement).checked; draw();
 });
 function syncPanel() {
   $<HTMLInputElement>('grid').checked = doc.grid;
+  $<HTMLInputElement>('bg').value = doc.background;
   $<HTMLInputElement>('title').value = doc.title;
   $<HTMLTextAreaElement>('rules').value = doc.rules;
   $<HTMLInputElement>('seed').value = String(doc.seed);

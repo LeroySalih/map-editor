@@ -26,5 +26,7 @@ aside{width:260px;display:flex;flex-direction:column;gap:10px}
 aside label{display:flex;flex-direction:column;gap:4px}
 aside label.check{flex-direction:row;align-items:center;gap:8px}
 aside label.check input{width:auto}
+aside label.check input[type=color]{width:44px;height:30px;padding:0;cursor:pointer}
+#clear.armed{background:#8c2f2a;border-color:#b8452e}
 #hint{opacity:.7}
 @media(max-width:800px){main{flex-direction:column}aside{width:100%}}
