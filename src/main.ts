@@ -349,15 +349,35 @@ $('signout').addEventListener('click', async () => {
 
 const failText = (e: unknown): string =>
   e instanceof ApiError
-    ? e.status === 401 ? 'Your sign-in has expired. Sign in again.' : e.message
+    ? e.status === 401
+      // By now a renewal has been tried (see authed), so this is not just an old token: the server really refused it.
+      ? 'The map server did not accept your sign-in. Sign out and in again; if it keeps happening, ask whoever runs the site to check the server log.'
+      : e.message
     : 'Something went wrong. Try again.';
+
+/** Call the map server with the current token. If the server answers 401 the token may simply have expired (a sleeping computer
+ *  can miss the timer), so renew it once and try again; only a second 401 is reported. */
+async function authed<T>(call: (token: string) => Promise<T>): Promise<T> {
+  if (!accessToken) throw new ApiError('Sign in first.', 401, 'unauthorized');
+  try {
+    return await call(accessToken);
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 401) throw e;
+    const renewed = await refreshTokens(sso).catch(() => null);
+    if (!renewed) throw e;
+    accessToken = renewed.accessToken;
+    keepAlive(renewed);
+    return await call(accessToken);
+  }
+}
 
 /** Save this page to the person's account: a new map the first time, then the same map. */
 async function saveRemote() {
   if (!accessToken) return renderAuth('Sign in to save to your account.');
   renderAuth('Saving…');
   try {
-    const r = remote ? await saveMap(accessToken, remote.id, doc, remote.version) : await createMap(accessToken, doc);
+    const link = remote;
+    const r = await authed((t) => (link ? saveMap(t, link.id, doc, link.version) : createMap(t, doc)));
     remote = { id: r.id, version: r.version };
     renderAuth(`Saved "${doc.title}" to your account.`);
   } catch (e) {
@@ -376,7 +396,7 @@ async function showMyMaps() {
   list.textContent = ''; msg.textContent = 'Loading…';
   if (!dlg.open) dlg.showModal();
   try {
-    const maps = await listMaps(accessToken);
+    const maps = await authed((t) => listMaps(t));
     msg.textContent = maps.length ? '' : 'You have no saved maps yet. Press "Save to my account" to keep this one.';
     for (const m of maps) {
       const li = document.createElement('li');
@@ -387,7 +407,7 @@ async function showMyMaps() {
       const del = document.createElement('button'); del.textContent = 'Delete';
       open.addEventListener('click', async () => {
         try {
-          const rec = await openMap(accessToken!, m.id);
+          const rec = await authed((t) => openMap(t, m.id));
           const next = validate(rec.doc);
           snapshot(); doc = next; remote = { id: rec.id, version: rec.version };
           selected.clear(); draft = []; syncPanel(); draw(); dlg.close();
@@ -398,7 +418,7 @@ async function showMyMaps() {
       del.addEventListener('click', async () => {
         if (!armed) { armed = true; del.textContent = 'Really delete?'; return; }
         try {
-          await deleteMap(accessToken!, m.id);
+          await authed((t) => deleteMap(t, m.id));
           if (remote?.id === m.id) remote = null;
           li.remove();
           if (!list.children.length) msg.textContent = 'You have no saved maps yet.';

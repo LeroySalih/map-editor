@@ -34,7 +34,7 @@ def test_role_is_needed(client, dino):
 
 def test_only_rs256_signed_by_dino_is_accepted(client, dino):
     now = int(time.time())
-    claims = {"iss": "https://dino.test", "aud": "kerf-sabre", "sub": "u1", "client_id": "map-editor", "roles": ["pupil"], "nbf": now, "exp": now + 900}
+    claims = {"iss": "https://dino.test", "aud": "map-editor", "sub": "u1", "client_id": "map-editor", "roles": ["pupil"], "nbf": now, "exp": now + 900}
     other = Dino()  # a different key with the same key id
     assert status(client, other.token()) == 401
     assert status(client, jwt.encode(claims, "secret" * 8, algorithm="HS256", headers={"kid": "k1", "typ": "at+jwt"})) == 401
@@ -87,6 +87,20 @@ def test_unknown_kid_does_not_hammer_dino(cfg, dino):
     for _ in range(5):
         assert status(c, other.token()) == 401
     assert calls["n"] == 1
+
+
+def test_a_refused_token_says_why_in_the_log_without_leaking(client, dino, caplog):
+    tok = dino.token(sub="pupil_secret_id", aud="kerf-sabre")   # signed by DINO, but for another audience
+    with caplog.at_level("WARNING", logger="mapserver.auth"):
+        assert status(client, tok) == 401
+    text = caplog.text
+    assert "InvalidAudienceError" in text
+    assert "kerf-sabre" in text and "map-editor" in text          # what the token says and what the server expects
+    assert "pupil_secret_id" not in text and tok not in text      # never the person, never the token
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="mapserver.auth"):
+        assert status(client, dino.token(client_id="kerf-editor")) == 401
+    assert "kerf-editor" in caplog.text and "MAP_SSO_CLIENT_ID" in caplog.text
 
 
 def test_no_secret_data_in_errors(client, dino):

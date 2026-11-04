@@ -34,6 +34,16 @@ def _http_get_json(url: str) -> dict[str, Any]:
         return json.loads(r.read().decode())
 
 
+def _peek(token: str) -> dict[str, Any]:
+    """The issuer, audience and client of a token that failed a check, for the log only. The signature is NOT verified here and
+    the subject (the person) is deliberately left out."""
+    try:
+        c = jwt.decode(token, options={"verify_signature": False})
+        return {k: c.get(k) for k in ("iss", "aud", "client_id")}
+    except jwt.PyJWTError:
+        return {}
+
+
 class Verifier:
     def __init__(self, cfg: Settings, fetch: Callable[[str], dict[str, Any]] | None = None,
                  clock: Callable[[], float] = time.monotonic):
@@ -86,6 +96,7 @@ class Verifier:
             raise bad from None
         if header.get("alg") != "RS256" or not isinstance(header.get("kid"), str) \
                 or str(header.get("typ", "")).lower() not in ("at+jwt", "application/at+jwt"):
+            log.warning("sign-in token refused: header is not an RS256 at+jwt with a kid (alg=%s typ=%s)", header.get("alg"), header.get("typ"))
             raise bad
         key = self._key_for(header["kid"])
         try:
@@ -94,15 +105,20 @@ class Verifier:
                 leeway=LEEWAY_S, options={"require": ["exp", "nbf", "iss", "aud", "sub"]},
             )
         except jwt.PyJWTError as e:
-            log.info("sign-in token refused: %s", type(e).__name__)
+            log.warning("sign-in token refused: %s (%s). The token says %s; this server expects iss=%r aud=%r",
+                        type(e).__name__, e, _peek(token), self.cfg.sso_issuer, self.cfg.sso_audience)
             raise bad from None
         if claims.get("client_id") != self.cfg.sso_client_id:
+            log.warning("sign-in token refused: client_id is %r but this server accepts only %r (MAP_SSO_CLIENT_ID)",
+                        claims.get("client_id"), self.cfg.sso_client_id)
             raise bad
         sub = claims["sub"]
         if not isinstance(sub, str) or not 0 < len(sub) <= 64 or not set(sub) <= ID_OK:
+            log.warning("sign-in token refused: the subject is not a plain ID of 1 to 64 letters, digits, _ or -")
             raise bad
         roles = claims.get("roles")
         have = {r.strip().lower() for r in roles if isinstance(r, str)} if isinstance(roles, list) else set()
         if not have & KNOWN_ROLES:
+            log.warning("sign-in token refused: no role this app knows (roles=%s)", sorted(have))
             raise ApiError(403, "forbidden", "Your DINO account does not have a role that can use the map editor.")
         return sub

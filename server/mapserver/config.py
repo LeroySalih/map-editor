@@ -9,7 +9,7 @@ from pathlib import Path
 @dataclass
 class Settings:
     sso_issuer: str = ""                       # DINO (planner-004) origin, e.g. https://dino.mr-salih.org
-    sso_audience: str = "kerf-sabre"           # the JWT `aud` DINO puts in tokens for first-party clients
+    sso_audience: str = "map-editor"           # the JWT `aud` DINO puts in tokens for this client (set the same Audience in DINO)
     sso_client_id: str = "map-editor"          # the only OAuth client whose tokens are accepted
     sso_jwks_url: str = ""                     # default: <issuer>/oauth/jwks
     db_path: str = "maps.db"
@@ -27,7 +27,7 @@ class Settings:
         e = os.environ if env is None else env
         s = cls(
             sso_issuer=e.get("MAP_SSO_ISSUER", "").rstrip("/"),
-            sso_audience=e.get("MAP_SSO_AUDIENCE", "kerf-sabre"),
+            sso_audience=e.get("MAP_SSO_AUDIENCE", "map-editor"),
             sso_client_id=e.get("MAP_SSO_CLIENT_ID", "map-editor"),
             sso_jwks_url=e.get("MAP_SSO_JWKS_URL", ""),
             db_path=e.get("MAP_DB_PATH", "maps.db"),

@@ -24,7 +24,7 @@ class Dino:
 
     def token(self, sub="u1", roles=("pupil",), **over):
         now = int(time.time())
-        claims = {"iss": ISSUER, "aud": "kerf-sabre", "sub": sub, "client_id": "map-editor", "roles": list(roles),
+        claims = {"iss": ISSUER, "aud": "map-editor", "sub": sub, "client_id": "map-editor", "roles": list(roles),
                   "iat": now, "nbf": now, "exp": now + 900}
         claims.update(over)
         claims = {k: v for k, v in claims.items() if v is not None}

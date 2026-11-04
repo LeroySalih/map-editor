@@ -18,7 +18,7 @@ To serve the editor from the server: `npm run build`, then `MAP_STATIC_DIR=../di
 | Variable | Default | Meaning |
 |---|---|---|
 | `MAP_SSO_ISSUER` | required | DINO (planner-004) origin. Keys come from `<issuer>/oauth/jwks` |
-| `MAP_SSO_AUDIENCE` | `kerf-sabre` | the JWT `aud` DINO issues for first-party clients |
+| `MAP_SSO_AUDIENCE` | `map-editor` | the JWT `aud`: must equal the Audience of the client in DINO |
 | `MAP_SSO_CLIENT_ID` | `map-editor` | the only OAuth client whose tokens are accepted |
 | `MAP_SSO_JWKS_URL` | issuer + `/oauth/jwks` | override the key-set address |
 | `MAP_DB_PATH` | `maps.db` | SQLite file (back this up) |
